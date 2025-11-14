@@ -69,4 +69,7 @@ dependencies {
 
     // Firebase AILogic AIチャット機能実装に必要
     implementation("com.google.firebase:firebase-ai")
+
+    //splashscreenを使用する際に必要
+    implementation("androidx.core:core-splashscreen:1.0.1")
 }
