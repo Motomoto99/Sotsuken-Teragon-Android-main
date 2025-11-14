@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "212042452857",
+    "project_id": "sotugyo-kenkyu-a0e36",
+    "storage_bucket": "sotugyo-kenkyu-a0e36.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:212042452857:android:128824b6ea15ba2505e9a8",
+        "android_client_info": {
+          "package_name": "com.example.sotugyo_kenkyu"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "212042452857-1lt3is1eg5l2jnphdudqp4ufsagavsmu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCVo3tQmfx-nrN1tlfCy_v7hyTBx7oBQ0U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "212042452857-1lt3is1eg5l2jnphdudqp4ufsagavsmu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
