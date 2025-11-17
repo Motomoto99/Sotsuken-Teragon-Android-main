@@ -30,7 +30,7 @@ class LoginActivity : AppCompatActivity() {
         // 4. 「メールログイン」ボタンがクリックされたときの動作を設定します
         emailLoginButton.setOnClickListener {
             // EmailLoginActivity（メール入力画面）を開くための「Intent」を作成します
-            val intent = Intent(this, EmailLogin::class.java)
+            val intent = Intent(this, EmailLoginActivity::class.java)
 
             // Intentを使って新しい画面を開きます
             startActivity(intent)
