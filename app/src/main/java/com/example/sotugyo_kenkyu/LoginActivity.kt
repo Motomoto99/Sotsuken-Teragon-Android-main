@@ -1,125 +1,121 @@
 package com.example.sotugyo_kenkyu
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.google.android.material.button.MaterialButton
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
-import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 
 /**
- * アプリ起動時の最初の画面（ログイン方法選択画面）
+ * アプリ起動時の最初の画面（ログイン方法選択画面）を担当するActivity
  */
 class LoginActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var googleSignInClient: GoogleSignInClient
 
-    // Googleログインの結果を受け取る
+    // Googleサインインの結果を受け取る
     private val googleSignInLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            // ActivityResultContracts では resultCode だけだとエラー理由が特定できないため
-            // 必ず「handleGoogleSignInResult」に渡して解析する
-            handleGoogleSignInResult(result.data)
+            if (result.resultCode == Activity.RESULT_OK) {
+                val data = result.data
+                handleGoogleSignInResult(data)
+            } else {
+                Toast.makeText(this, "Googleログインがキャンセルされました", Toast.LENGTH_SHORT).show()
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // スプラッシュ
+        // 1. スプラッシュスクリーン
         installSplashScreen()
 
-        // レイアウト読み込み
+        // 2. レイアウト設定
         setContentView(R.layout.activity_login)
 
         // FirebaseAuth 初期化
         auth = FirebaseAuth.getInstance()
 
-        // Google ログイン設定
-        setupGoogleLogin()
-
-        // ボタン取得
-        val emailLoginButton = findViewById<MaterialButton>(R.id.emailLoginButton)
-        val googleLoginButton = findViewById<MaterialButton>(R.id.googleLoginButton)
-        val registerButton = findViewById<MaterialButton>(R.id.registerButton)
-
-        // メールログイン
-        emailLoginButton.setOnClickListener {
-            startActivity(Intent(this, EmailLoginActivity::class.java))
-        }
-
-        // 新規登録
-        registerButton.setOnClickListener {
-            startActivity(Intent(this, RegisterActivity::class.java))
-        }
-
-        // Googleログイン
-        googleLoginButton.setOnClickListener {
-            signInWithGoogle()
-        }
-    }
-
-    /**
-     * Googleログインの設定
-     */
-    private fun setupGoogleLogin() {
+        // GoogleSignIn の設定
+        // default_web_client_id は google-services.json から自動生成される
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken(getString(R.string.default_web_client_id))
             .requestEmail()
             .build()
 
         googleSignInClient = GoogleSignIn.getClient(this, gso)
+
+        // 3. ボタン取得
+        val emailLoginButton = findViewById<MaterialButton>(R.id.emailLoginButton)
+        val googleLoginButton = findViewById<MaterialButton>(R.id.googleLoginButton)
+        val registerButton = findViewById<MaterialButton>(R.id.registerButton)
+
+        // 4. 「メールログイン」ボタン
+        emailLoginButton.setOnClickListener {
+            val intent = Intent(this, EmailLoginActivity::class.java)
+            startActivity(intent)
+        }
+
+        // 5. 「アカウント登録」ボタン
+        registerButton.setOnClickListener {
+            val intent = Intent(this, RegisterActivity::class.java)
+            startActivity(intent)
+        }
+
+        // 6. 「Googleログイン」ボタン
+        googleLoginButton.setOnClickListener {
+            signInWithGoogle()
+        }
     }
 
-    /**
-     * Googleログイン画面を開く
-     */
+    // Googleサインイン画面を開く
     private fun signInWithGoogle() {
-        val intent = googleSignInClient.signInIntent
-        googleSignInLauncher.launch(intent)
+        val signInIntent = googleSignInClient.signInIntent
+        googleSignInLauncher.launch(signInIntent)
     }
 
-    /**
-     * Googleログインの結果を処理し Firebase 認証に連携
-     */
+    // Googleサインインの結果を処理し、FirebaseAuth と連携
     private fun handleGoogleSignInResult(data: Intent?) {
         try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(data)
             val account = task.getResult(ApiException::class.java)
 
-            val idToken = account.idToken ?: run {
-                Toast.makeText(this, "IDトークンを取得できませんでした", Toast.LENGTH_SHORT).show()
+            val idToken = account.idToken
+            if (idToken == null) {
+                Toast.makeText(this, "IDトークン取得に失敗しました", Toast.LENGTH_SHORT).show()
                 return
             }
 
             val credential = GoogleAuthProvider.getCredential(idToken, null)
 
             auth.signInWithCredential(credential)
-                .addOnCompleteListener { authTask ->
+                .addOnCompleteListener(this) { authTask ->
                     if (authTask.isSuccessful) {
+                        // ここでホーム画面へ遷移
                         goToHomeScreen()
                     } else {
-                        Toast.makeText(this, "Firebase ログインに失敗しました", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "Googleログインに失敗しました", Toast.LENGTH_SHORT).show()
                     }
                 }
 
         } catch (e: ApiException) {
-            Toast.makeText(this, "Googleログインエラー: ${e.statusCode}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Googleログインに失敗しました", Toast.LENGTH_SHORT).show()
         }
     }
 
-    /**
-     * ホーム画面へ遷移
-     */
+    // ホーム画面へ遷移（クラス名は実アプリに合わせて変更）
     private fun goToHomeScreen() {
-        val intent = Intent(this, HomeActivity::class.java) // ←ここを変更してOK
+        val intent = Intent(this, HomeActivity::class.java) // ←ここを実際のホームActivityに変更
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
     }
