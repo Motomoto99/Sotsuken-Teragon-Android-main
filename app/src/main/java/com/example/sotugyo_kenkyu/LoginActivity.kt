@@ -1,16 +1,17 @@
 package com.example.sotugyo_kenkyu
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.google.android.material.button.MaterialButton
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
-import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 
@@ -25,10 +26,13 @@ class LoginActivity : AppCompatActivity() {
     // Googleサインインの結果を受け取る
     private val googleSignInLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            // resultCode に関係なく、とりあえず結果を解析する
-            handleGoogleSignInResult(result.data)
+            if (result.resultCode == Activity.RESULT_OK) {
+                val data = result.data
+                handleGoogleSignInResult(data)
+            } else {
+                Toast.makeText(this, "Googleログインがキャンセルされました", Toast.LENGTH_SHORT).show()
+            }
         }
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,22 +101,17 @@ class LoginActivity : AppCompatActivity() {
             auth.signInWithCredential(credential)
                 .addOnCompleteListener(this) { authTask ->
                     if (authTask.isSuccessful) {
+                        // ここでホーム画面へ遷移
                         goToHomeScreen()
                     } else {
-                        Toast.makeText(this, "Firebaseログインに失敗しました", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "Googleログインに失敗しました", Toast.LENGTH_SHORT).show()
                     }
                 }
 
         } catch (e: ApiException) {
-            // ここで Google 側のエラー内容が分かる
-            Toast.makeText(
-                this,
-                "Googleログインエラー: statusCode=${e.statusCode}",
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(this, "Googleログインに失敗しました", Toast.LENGTH_SHORT).show()
         }
     }
-
 
     // ホーム画面へ遷移（クラス名は実アプリに合わせて変更）
     private fun goToHomeScreen() {
