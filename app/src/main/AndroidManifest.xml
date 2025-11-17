@@ -11,6 +11,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Sotugyo_kenkyu">
+
         <activity
             android:name=".ForgotPasswordActivity"
             android:exported="false" />
