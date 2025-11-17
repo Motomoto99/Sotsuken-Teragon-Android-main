@@ -2,7 +2,6 @@ package com.example.sotugyo_kenkyu
 
 import android.content.Intent
 import android.os.Bundle
-import android.content.Intent
 import android.widget.Button // Buttonをインポート
 import android.widget.EditText // EditTextをインポート
 import android.widget.ImageButton // ImageButtonをインポート
