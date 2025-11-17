@@ -1,5 +1,6 @@
 package com.example.sotugyo_kenkyu
 
+import android.content.Intent
 import android.os.Bundle
 import android.content.Intent
 import android.widget.Button // Buttonをインポート
@@ -62,13 +63,9 @@ class EmailLoginActivity : AppCompatActivity() {
                     if (task.isSuccessful) {
                         // ログイン成功
                         Toast.makeText(this, "ログインしました", Toast.LENGTH_SHORT).show()
-
-                        // HomeActivityがまだ無いので、遷移処理はコメントアウト
-                        /*
                         val intent = Intent(this, HomeActivity::class.java)
                         startActivity(intent)
                         finish() // このログイン画面を閉じる
-                        */
                     } else {
                         // ログイン失敗
                         Toast.makeText(this, "ログインに失敗しました: ${task.exception?.message}", Toast.LENGTH_LONG).show()
@@ -81,7 +78,7 @@ class EmailLoginActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        // --- 3. 戻るボタンが押された時の処理 ---
+        // --- 2. 戻るボタンが押された時の処理 ---
         backButton.setOnClickListener {
             finish() // この画面(Activity)を閉じて、前の画面に戻る
         }
