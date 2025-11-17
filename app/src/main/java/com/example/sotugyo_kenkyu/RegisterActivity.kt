@@ -3,6 +3,8 @@ package com.example.sotugyo_kenkyu
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -28,34 +30,42 @@ class RegisterActivity : AppCompatActivity() {
         val email : EditText = findViewById(R.id.editTextEmail)
         val password : EditText = findViewById(R.id.editTextPassword)
         val re_password : EditText = findViewById(R.id.editTextPasswordConfirm)
+        val back_button : ImageButton = findViewById(R.id.buttonBack)
 
         //「アカウントを登録」ボタンを押したときの処理
         register_action.setOnClickListener {
-            val email = email.text.toString()
-            val password = password.text.toString()
-            val re_password = re_password.text.toString()
+            val email = email
+            val password = password
+            val re_password = re_password
 
             //入力チェック
-            if(email.isEmpty() || password.isEmpty() || re_password.isEmpty()){
+            if(email.text.toString().isEmpty() || password.text.toString().isEmpty() || re_password.text.toString().isEmpty()){
                 Toast.makeText(this, "すべての項目を入力してください", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            if(password != re_password){
+            if(password.text.toString() != re_password.text.toString()){
                 Toast.makeText(this, "パスワードが一致しません", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
             //Firebase Authでアカウント登録
-            auth.createUserWithEmailAndPassword(email, password)
+            auth.createUserWithEmailAndPassword(email.text.toString(), password.text.toString())
                 .addOnCompleteListener(this) { task ->
                     if (task.isSuccessful) {
                         Toast.makeText(this, "登録しました", Toast.LENGTH_SHORT).show()
-                        // 必要なら画面遷移など
+                        finish()
                     } else {
                         Toast.makeText(this, "登録失敗: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+                        email.setText("")
+                        password.setText("")
+                        re_password.setText("")
                     }
                 }
+        }
 
+        //戻るボタンが押された時
+        back_button.setOnClickListener {
+            finish()
         }
     }
 }
