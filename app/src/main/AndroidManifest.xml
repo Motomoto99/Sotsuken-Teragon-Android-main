@@ -12,7 +12,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Sotugyo_kenkyu">
         <activity
-            android:name=".EmailLogin"
+            android:name=".EmailLoginActivity"
             android:exported="false" />
         <activity
             android:name=".LoginActivity"
@@ -23,7 +23,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
     </application>
 
 </manifest>

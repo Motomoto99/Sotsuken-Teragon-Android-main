@@ -91,31 +91,35 @@
         android:textSize="12sp"
         app:layout_constraintEnd_toEndOf="@+id/editTextPassword"
         app:layout_constraintTop_toBottomOf="@+id/editTextPassword"
-        app:layout_constraintBottom_toTopOf="@+id/labelPasswordConfirm"/> <TextView
-    android:id="@+id/labelPasswordConfirm"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="16dp"
-    android:layout_marginBottom="4dp"
-    android:text="パスワード (確認用)"
-    android:textColor="#404040"
-    android:textStyle="bold"
-    android:visibility="gone"
-    app:layout_constraintBottom_toTopOf="@+id/editTextPasswordConfirm"
-    app:layout_constraintStart_toStartOf="@+id/editTextPasswordConfirm"
-    app:layout_constraintTop_toBottomOf="@+id/textViewForgotPassword" /> <EditText
-    android:id="@+id/editTextPasswordConfirm"
-    android:layout_width="0dp"
-    android:layout_height="50dp"
-    android:background="@drawable/rounded_edittext_bg"
-    android:inputType="textPassword"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp"
-    android:visibility="gone"
-    app:layout_constraintBottom_toTopOf="@+id/buttonLogin"
-    app:layout_constraintEnd_toEndOf="@+id/editTextEmail"
-    app:layout_constraintStart_toStartOf="@+id/editTextEmail"
-    app:layout_constraintTop_toBottomOf="@+id/labelPasswordConfirm" />
+        app:layout_constraintBottom_toTopOf="@+id/labelPasswordConfirm"/>
+
+    <TextView
+        android:id="@+id/labelPasswordConfirm"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="4dp"
+        android:text="パスワード (確認用)"
+        android:textColor="#404040"
+        android:textStyle="bold"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@+id/editTextPasswordConfirm"
+        app:layout_constraintStart_toStartOf="@+id/editTextPasswordConfirm"
+        app:layout_constraintTop_toBottomOf="@+id/textViewForgotPassword" />
+
+    <EditText
+        android:id="@+id/editTextPasswordConfirm"
+        android:layout_width="0dp"
+        android:layout_height="50dp"
+        android:background="@drawable/rounded_edittext_bg"
+        android:inputType="textPassword"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@+id/buttonLogin"
+        app:layout_constraintEnd_toEndOf="@+id/editTextEmail"
+        app:layout_constraintStart_toStartOf="@+id/editTextEmail"
+        app:layout_constraintTop_toBottomOf="@+id/labelPasswordConfirm" />
 
     <Button
         android:id="@+id/buttonLogin"

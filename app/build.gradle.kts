@@ -52,8 +52,13 @@ dependencies {
     //BOM Firebase利用に必要
     implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
 
+    //MDCライブラリの追加
+    implementation("com.google.android.material:material:1.10.0")
+
     // Firebase Authentication 認証に必要
     implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 
     // Cloud Firestore DB利用に必要
     implementation("com.google.firebase:firebase-firestore")
@@ -64,12 +69,14 @@ dependencies {
     implementation("com.github.bumptech.glide:glide:4.15.1")
     kapt("com.github.bumptech.glide:compiler:4.15.1")
 
-    // Cloud Functions for Firebase 外部APIとの接続等に必要
-    implementation("com.google.firebase:firebase-functions")
-
     // Firebase AILogic AIチャット機能実装に必要
     implementation("com.google.firebase:firebase-ai")
 
     //splashscreenを使用する際に必要
     implementation("androidx.core:core-splashscreen:1.0.1")
+
+
+
+
+
 }
