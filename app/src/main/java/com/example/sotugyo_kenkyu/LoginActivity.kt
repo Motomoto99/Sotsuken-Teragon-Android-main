@@ -25,7 +25,7 @@ class LoginActivity : AppCompatActivity() {
         //    R.id.〜 は activity_login.xml で設定したIDです
         val emailLoginButton = findViewById<MaterialButton>(R.id.emailLoginButton)
         val googleLoginButton = findViewById<MaterialButton>(R.id.googleLoginButton)
-        val guestLoginButton = findViewById<MaterialButton>(R.id.registerButton)
+        val registerButton = findViewById<MaterialButton>(R.id.registerButton)
 
         // 4. 「メールログイン」ボタンがクリックされたときの動作を設定します
         emailLoginButton.setOnClickListener {
@@ -36,7 +36,13 @@ class LoginActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        // 5. 「Googleログイン」ボタンがクリックされたときの動作（現在は未実装のメッセージ表示）
+        //5. 「アカウント登録」ボタンが押された時の処理
+        registerButton.setOnClickListener {
+            val intent = Intent(this, RegisterActivity::class.java)
+            startActivity(intent)
+        }
+
+        // 6. 「Googleログイン」ボタンがクリックされたときの動作（現在は未実装のメッセージ表示）
         /*googleLoginButton.setOnClickListener {
             // GoogleLoginActivity を開くための「Intent」を作成します
             val intent = Intent(this, GoogleLoginActivity::class.java)
