@@ -64,10 +64,9 @@ class EmailLoginActivity : AppCompatActivity() {
                         Toast.makeText(this, "ログインしました", Toast.LENGTH_SHORT).show()
                         val intent = Intent(this, HomeActivity::class.java)
                         startActivity(intent)
-                        finish() // このログイン画面を閉じる
                     } else {
                         // ログイン失敗
-                        Toast.makeText(this, "ログインに失敗しました: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this, "ログインに失敗しました", Toast.LENGTH_SHORT).show()
                     }
                 }
         }
