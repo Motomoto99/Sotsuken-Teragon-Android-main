@@ -12,6 +12,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Sotugyo_kenkyu">
         <activity
+            android:name=".ForgotPasswordActivity"
+            android:exported="false" />
+        <activity
+            android:name=".HomeActivity"
+            android:exported="false" />
+        <activity
             android:name=".EmailLoginActivity"
             android:exported="false" />
 
