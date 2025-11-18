@@ -11,6 +11,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.auth.auth
 
 class RegisterActivity : AppCompatActivity() {
@@ -55,6 +56,10 @@ class RegisterActivity : AppCompatActivity() {
                     if (task.isSuccessful) {
                         Toast.makeText(this, "登録しました", Toast.LENGTH_SHORT).show()
                         val user = Firebase.auth.currentUser
+                        val profileUpdates = UserProfileChangeRequest.Builder()
+                            .setDisplayName("初期ユーザー") // 初期のユーザ名
+                            .build()
+                        user?.updateProfile(profileUpdates)
                         user?.sendEmailVerification()
                         finish()
                     } else {

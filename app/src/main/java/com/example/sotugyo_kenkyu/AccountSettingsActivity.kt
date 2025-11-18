@@ -4,12 +4,14 @@ import android.content.Intent // ★ インポート
 import android.os.Bundle
 import android.widget.Button // ★ インポート
 import android.widget.ImageButton
+import android.widget.TextView
 import android.widget.Toast // ★ インポート
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.auth.FirebaseAuth // ★ インポート
+import com.google.firebase.auth.UserProfileChangeRequest
 
 class AccountSettingsActivity : AppCompatActivity() {
 
@@ -55,6 +57,28 @@ class AccountSettingsActivity : AppCompatActivity() {
 
             // 現在のAccountSettingsActivityを閉じる
             finish()
+        }
+
+        //ユーザ名変更ボタン（鉛筆マーク）を押したとき
+        val usernameedit : ImageButton = findViewById(R.id.buttonEditUsername)
+        val usernamedisp : TextView = findViewById(R.id.textViewUsername)
+
+        usernameedit.setOnClickListener {
+            val user = FirebaseAuth.getInstance().currentUser
+            val updateName = usernamedisp.text.toString()
+
+            val profileUpdates = UserProfileChangeRequest.Builder()
+                .setDisplayName(updateName)
+                .build()
+
+            user?.updateProfile(profileUpdates)
+                ?.addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        Toast.makeText(this, "ユーザ名を変更しました", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this, "変更失敗: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
         }
     }
 }
