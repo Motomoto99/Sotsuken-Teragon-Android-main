@@ -8,14 +8,15 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
-// ★ Toastをインポートしている行があれば削除 (例: import android.widget.Toast)
 
 class HomeActivity : AppCompatActivity() {
 
+    // ★ フラグメントのインスタンスを作成
     private val homeFragment = HomeFragment()
-    // (他のフラグメントも今後作成)
-    // private val searchFragment = SearchFragment()
-    // ...
+    private val searchFragment = SearchFragment() // ★ 追加
+    // private val aiFragment = AiFragment()
+    // private val favoriteFragment = FavoriteFragment()
+    // private val recordFragment = RecordFragment()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,48 +31,36 @@ class HomeActivity : AppCompatActivity() {
             insets
         }
 
-        // ★★★ 変更点 ★★★
-        // 動作確認用の showToast(...) の呼び出しを削除
+        // ナビゲーションのクリックリスナー
         bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_home -> replaceFragment(homeFragment)
 
-                R.id.nav_search -> {
-                    // replaceFragment(searchFragment) // (未作成のためコメントアウト)
-                    // showToast("検索") // ←
-                }
+                R.id.nav_search -> replaceFragment(searchFragment) // ★ 変更
+
                 R.id.nav_ai -> {
                     // replaceFragment(aiFragment) // (未作成のためコメントアウト)
-                    // showToast("AI") // ← 削除
                 }
                 R.id.nav_favorite -> {
                     // replaceFragment(favoriteFragment) // (未作成のためコメントアウト)
-                    // showToast("お気に入り") // ← 削除
                 }
                 R.id.nav_record -> {
                     // replaceFragment(recordFragment) // (未作成のためコメントアウト)
-                    // showToast("記録") // ← 削除
                 }
             }
             true
         }
 
+        // 起動時にHomeFragmentをデフォルトで表示 (変更なし)
         if (savedInstanceState == null) {
             bottomNavigation.selectedItemId = R.id.nav_home
         }
     }
 
+    // フラグメント切り替え関数 (変更なし)
     private fun replaceFragment(fragment: Fragment) {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, fragment)
             .commit()
     }
-
-    // ★★★ 変更点 ★★★
-    // 動作確認用の showToast 関数自体を削除
-    /*
-    private fun showToast(message: String) {
-        android.widget.Toast.makeText(this, "$message 画面", android.widget.Toast.LENGTH_SHORT).show()
-    }
-    */
 }
