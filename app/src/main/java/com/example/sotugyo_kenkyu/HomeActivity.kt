@@ -38,7 +38,7 @@ class HomeActivity : AppCompatActivity() {
 
                 R.id.nav_search -> {
                     // replaceFragment(searchFragment) // (未作成のためコメントアウト)
-                    // showToast("検索") // ← 削除
+                    // showToast("検索") // ←
                 }
                 R.id.nav_ai -> {
                     // replaceFragment(aiFragment) // (未作成のためコメントアウト)
