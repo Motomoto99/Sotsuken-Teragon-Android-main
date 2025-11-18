@@ -13,10 +13,10 @@ class HomeActivity : AppCompatActivity() {
 
     // ★ フラグメントのインスタンスを作成
     private val homeFragment = HomeFragment()
-    private val searchFragment = SearchFragment() // ★ 追加
-    // private val aiFragment = AiFragment()
-    // private val favoriteFragment = FavoriteFragment()
-    // private val recordFragment = RecordFragment()
+    private val searchFragment = SearchFragment()
+    private val aiFragment = AiFragment() // ★ 追加
+    private val favoriteFragment = FavoriteFragment() // ★ 追加
+    private val recordFragment = RecordFragment() // ★ 追加
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,18 +35,10 @@ class HomeActivity : AppCompatActivity() {
         bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_home -> replaceFragment(homeFragment)
-
-                R.id.nav_search -> replaceFragment(searchFragment) // ★ 変更
-
-                R.id.nav_ai -> {
-                    // replaceFragment(aiFragment) // (未作成のためコメントアウト)
-                }
-                R.id.nav_favorite -> {
-                    // replaceFragment(favoriteFragment) // (未作成のためコメントアウト)
-                }
-                R.id.nav_record -> {
-                    // replaceFragment(recordFragment) // (未作成のためコメントアウト)
-                }
+                R.id.nav_search -> replaceFragment(searchFragment)
+                R.id.nav_ai -> replaceFragment(aiFragment) // ★ 変更
+                R.id.nav_favorite -> replaceFragment(favoriteFragment) // ★ 変更
+                R.id.nav_record -> replaceFragment(recordFragment) // ★ 変更
             }
             true
         }
