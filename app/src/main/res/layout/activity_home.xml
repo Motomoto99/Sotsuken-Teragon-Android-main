@@ -168,6 +168,7 @@
         app:labelVisibilityMode="labeled"
 
         app:itemIconSize="30dp"
+        android:fitsSystemWindows="true"
         />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
