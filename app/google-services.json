@@ -14,19 +14,19 @@
       },
       "oauth_client": [
         {
-          "client_id": "212042452857-n2mf2ttfntahpki91am2kvq785amtrt4.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.sotugyo_kenkyu",
-            "certificate_hash": "6de1922f04587e1e9a56eff9ea870b9972867b6e"
-          }
-        },
-        {
           "client_id": "212042452857-8jv3jhddqcr1qj4c1flg1ea4dvb5utuj.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.sotugyo_kenkyu",
             "certificate_hash": "0fcdc9ef4cf03bf30d8cd1452404952ab7460d1e"
+          }
+        },
+        {
+          "client_id": "212042452857-idbri162tphprl4n8fopl4tpq87kkmes.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.sotugyo_kenkyu",
+            "certificate_hash": "e78d140417aac6ad68a3604dd05f112b9943dd23"
           }
         },
         {
