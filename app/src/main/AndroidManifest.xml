@@ -13,6 +13,9 @@
         android:theme="@style/Theme.Sotugyo_kenkyu">
 
         <activity
+            android:name=".AccountSettingsActivity"
+            android:exported="false" />
+        <activity
             android:name=".ForgotPasswordActivity"
             android:exported="false" />
         <activity
