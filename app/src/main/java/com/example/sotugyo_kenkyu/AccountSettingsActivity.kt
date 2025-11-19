@@ -9,6 +9,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -28,6 +29,9 @@ class AccountSettingsActivity : AppCompatActivity() {
     private lateinit var buttonEditUsername: ImageButton
     private lateinit var buttonSaveUsername: Button
 
+    // ★ 追加: 注意書きのTextView
+    private lateinit var textCharLimit: TextView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -40,26 +44,25 @@ class AccountSettingsActivity : AppCompatActivity() {
         editTextUsername = findViewById(R.id.editTextUsername)
         buttonEditUsername = findViewById(R.id.buttonEditUsername)
         buttonSaveUsername = findViewById(R.id.buttonSaveUsername)
+        textCharLimit = findViewById(R.id.textCharLimit) // ★ 取得
+
         val backButton: ImageButton = findViewById(R.id.buttonBack)
         val signOutButton: Button = findViewById(R.id.buttonSignOut)
 
-        // WindowInsets (ステータスバーの余白調整)
+        // WindowInsets
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
 
-        // 初期状態の設定
-        // 無効化時のテキスト色を黒に強制
+        // 初期設定
         editTextUsername.isEnabled = false
         editTextUsername.setTextColor(Color.parseColor("#404040"))
 
-        // ユーザー情報のロード
         loadUserProfile()
 
-        // --- リスナー設定 ---
-
+        // リスナー
         backButton.setOnClickListener { finish() }
 
         signOutButton.setOnClickListener {
@@ -71,27 +74,22 @@ class AccountSettingsActivity : AppCompatActivity() {
             finish()
         }
 
-        // 鉛筆ボタン：編集モードへ切り替え
+        // 鉛筆ボタン：編集モードへ
         buttonEditUsername.setOnClickListener {
-            // EditTextを有効化
             editTextUsername.isEnabled = true
-
-            // フォーカスを当ててキーボードを表示
             editTextUsername.requestFocus()
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showSoftInput(editTextUsername, InputMethodManager.SHOW_IMPLICIT)
-
-            // カーソルを末尾に移動
             editTextUsername.setSelection(editTextUsername.text.length)
 
-            // 保存ボタンを表示
             buttonSaveUsername.visibility = View.VISIBLE
-
-            // 鉛筆ボタンを隠す（INVISIBLEにして場所は確保する）
             buttonEditUsername.visibility = View.INVISIBLE
+
+            // ★ 注意書きを表示
+            textCharLimit.visibility = View.VISIBLE
         }
 
-        // 保存ボタン：保存して表示モードへ戻る
+        // 保存ボタン
         buttonSaveUsername.setOnClickListener {
             saveUsername()
         }
@@ -99,8 +97,6 @@ class AccountSettingsActivity : AppCompatActivity() {
 
     private fun loadUserProfile() {
         val user = auth.currentUser ?: return
-
-        // Firestoreから取得を試みる
         db.collection("users").document(user.uid).get()
             .addOnSuccessListener { document ->
                 val username = document?.getString("username")
@@ -109,7 +105,6 @@ class AccountSettingsActivity : AppCompatActivity() {
                 editTextUsername.setText(username)
             }
             .addOnFailureListener {
-                // 失敗時はAuthの情報を使用
                 editTextUsername.setText(user.displayName ?: "初期ユーザー")
             }
     }
@@ -123,7 +118,12 @@ class AccountSettingsActivity : AppCompatActivity() {
             return
         }
 
-        // 1. Authプロフィールの更新
+        // ★ 必要であればここで文字数チェックを追加することも可能
+        if (newName.length > 20) {
+            Toast.makeText(this, "20文字以内で入力してください", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val profileUpdates = UserProfileChangeRequest.Builder()
             .setDisplayName(newName)
             .build()
@@ -131,22 +131,21 @@ class AccountSettingsActivity : AppCompatActivity() {
         user.updateProfile(profileUpdates)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    // 2. Firestoreの更新
                     val userData = hashMapOf("username" to newName)
                     db.collection("users").document(user.uid)
                         .set(userData, SetOptions.merge())
                         .addOnSuccessListener {
                             Toast.makeText(this, "更新しました", Toast.LENGTH_SHORT).show()
 
-                            // 編集モード終了：元に戻す
+                            // 編集モード終了
                             editTextUsername.isEnabled = false
                             editTextUsername.setTextColor(Color.parseColor("#404040"))
 
-                            // 保存ボタンを隠す
                             buttonSaveUsername.visibility = View.GONE
-
-                            // 鉛筆ボタンを再表示
                             buttonEditUsername.visibility = View.VISIBLE
+
+                            // ★ 注意書きを非表示
+                            textCharLimit.visibility = View.GONE
                         }
                         .addOnFailureListener {
                             Toast.makeText(this, "DB更新失敗: ${it.message}", Toast.LENGTH_SHORT).show()
