@@ -1,40 +1,32 @@
 package com.example.sotugyo_kenkyu
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageButton
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout // ★ 追加
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 
 class NotificationActivity : AppCompatActivity() {
 
-    private lateinit var db: FirebaseFirestore
-    private lateinit var recyclerView: RecyclerView
-    private lateinit var textNoData: TextView
-    private lateinit var swipeRefreshLayout: SwipeRefreshLayout // ★ 追加
+    private lateinit var textLatestMessage: TextView
+    private lateinit var textUnreadCount: TextView // ★ 追加
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_notification)
 
-        db = FirebaseFirestore.getInstance()
-
-        recyclerView = findViewById(R.id.recyclerViewNotifications)
-        textNoData = findViewById(R.id.textNoData)
-        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout) // ★ 追加
+        textLatestMessage = findViewById(R.id.textLatestMessage)
+        textUnreadCount = findViewById(R.id.textUnreadCount) // ★ 追加
         val backButton = findViewById<ImageButton>(R.id.buttonBack)
-
-        recyclerView.layoutManager = LinearLayoutManager(this)
+        val buttonAdminChat = findViewById<View>(R.id.buttonAdminChat)
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -44,54 +36,65 @@ class NotificationActivity : AppCompatActivity() {
 
         backButton.setOnClickListener { finish() }
 
-        // ★★★ 追加: 引っ張って更新のリスナー ★★★
-        swipeRefreshLayout.setOnRefreshListener {
-            fetchNotifications()
+        buttonAdminChat.setOnClickListener {
+            val intent = Intent(this, AdminChatActivity::class.java)
+            startActivity(intent)
         }
-
-        // データ取得
-        fetchNotifications()
     }
 
-    private fun fetchNotifications() {
-        // 読み込み開始時にグルグルを表示（初回ロード用）
-        // swipeRefreshLayout.isRefreshing = true
-        // ↑ これを入れると自動で回りますが、初回は不要ならコメントアウトでもOK
+    override fun onResume() {
+        super.onResume()
+        updateLatestMessage()
+        updateUnreadCount() // ★ 追加: 未読数を更新
+    }
+
+    // ★★★ 追加: 未読数をカウントして表示する ★★★
+    private fun updateUnreadCount() {
+        val db = FirebaseFirestore.getInstance()
+        val prefs = getSharedPreferences("prefs_notification", Context.MODE_PRIVATE)
+        val lastSeenTime = prefs.getLong("last_seen_timestamp", 0L)
+
+        db.collection("notifications").get()
+            .addOnSuccessListener { result ->
+                var unreadCount = 0
+                for (document in result) {
+                    val notification = document.toObject(Notification::class.java)
+                    val date = notification.date
+                    // 最後に見た時間より新しいものをカウント
+                    if (date != null && date.toDate().time > lastSeenTime) {
+                        unreadCount++
+                    }
+                }
+
+                if (unreadCount > 0) {
+                    textUnreadCount.text = if (unreadCount > 99) "99+" else unreadCount.toString()
+                    textUnreadCount.visibility = View.VISIBLE
+                } else {
+                    textUnreadCount.visibility = View.GONE
+                }
+            }
+            .addOnFailureListener {
+                textUnreadCount.visibility = View.GONE
+            }
+    }
+
+    private fun updateLatestMessage() {
+        val db = FirebaseFirestore.getInstance()
 
         db.collection("notifications")
             .orderBy("date", Query.Direction.DESCENDING)
+            .limit(1)
             .get()
-            .addOnSuccessListener { result ->
-                // ★★★ 追加: 読み込み完了したらグルグルを止める ★★★
-                swipeRefreshLayout.isRefreshing = false
-
-                val notificationList = ArrayList<Notification>()
-
-                for (document in result) {
-                    val notification = document.toObject(Notification::class.java)
-                    notificationList.add(notification)
-                }
-
-                if (notificationList.isEmpty()) {
-                    // データがない場合
-                    // ★ 変更: RecyclerViewは消さずに、textNoDataだけ出す
-                    // (RecyclerViewを消すと引っ張って更新ができなくなることがあるため)
-                    textNoData.visibility = View.VISIBLE
-
-                    // 空リストをセットしてクリア
-                    recyclerView.adapter = NotificationAdapter(emptyList())
+            .addOnSuccessListener { documents ->
+                if (!documents.isEmpty) {
+                    val notification = documents.documents[0].toObject(Notification::class.java)
+                    textLatestMessage.text = notification?.content ?: ""
                 } else {
-                    // データがある場合
-                    textNoData.visibility = View.GONE
-
-                    val adapter = NotificationAdapter(notificationList)
-                    recyclerView.adapter = adapter
+                    textLatestMessage.text = "現在、お知らせはありません"
                 }
             }
-            .addOnFailureListener { exception ->
-                // ★★★ 追加: エラー時もグルグルを止める ★★★
-                swipeRefreshLayout.isRefreshing = false
-                Toast.makeText(this, "データの取得に失敗しました: ${exception.message}", Toast.LENGTH_SHORT).show()
+            .addOnFailureListener {
+                textLatestMessage.text = "読み込みに失敗しました"
             }
     }
 }
