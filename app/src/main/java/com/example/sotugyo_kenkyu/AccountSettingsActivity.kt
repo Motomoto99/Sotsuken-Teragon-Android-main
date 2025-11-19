@@ -15,6 +15,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding // ★ 追加
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
@@ -28,8 +29,6 @@ class AccountSettingsActivity : AppCompatActivity() {
     private lateinit var editTextUsername: EditText
     private lateinit var buttonEditUsername: ImageButton
     private lateinit var buttonSaveUsername: Button
-
-    // ★ 追加: 注意書きのTextView
     private lateinit var textCharLimit: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,25 +43,33 @@ class AccountSettingsActivity : AppCompatActivity() {
         editTextUsername = findViewById(R.id.editTextUsername)
         buttonEditUsername = findViewById(R.id.buttonEditUsername)
         buttonSaveUsername = findViewById(R.id.buttonSaveUsername)
-        textCharLimit = findViewById(R.id.textCharLimit) // ★ 取得
+        textCharLimit = findViewById(R.id.textCharLimit)
+        val backButton = findViewById<ImageButton>(R.id.buttonBack)
+        val signOutButton = findViewById<Button>(R.id.buttonSignOut)
+        val header = findViewById<View>(R.id.header) // ★ 追加
 
-        val backButton: ImageButton = findViewById(R.id.buttonBack)
-        val signOutButton: Button = findViewById(R.id.buttonSignOut)
-
-        // WindowInsets
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+        // ★★★ WindowInsets設定 (ヘッダーにパディング適用) ★★★
+        ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            // XMLの16dp + ステータスバーの高さ
+            val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
+            v.updatePadding(top = systemBars.top + originalPaddingTop)
             insets
         }
 
-        // 初期設定
+        // メイン部分(下部のバー回避用)
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(systemBars.left, 0, systemBars.right, systemBars.bottom)
+            insets
+        }
+
+        // --- 以下、変更なし ---
         editTextUsername.isEnabled = false
         editTextUsername.setTextColor(Color.parseColor("#404040"))
 
         loadUserProfile()
 
-        // リスナー
         backButton.setOnClickListener { finish() }
 
         signOutButton.setOnClickListener {
@@ -74,7 +81,6 @@ class AccountSettingsActivity : AppCompatActivity() {
             finish()
         }
 
-        // 鉛筆ボタン：編集モードへ
         buttonEditUsername.setOnClickListener {
             editTextUsername.isEnabled = true
             editTextUsername.requestFocus()
@@ -84,12 +90,9 @@ class AccountSettingsActivity : AppCompatActivity() {
 
             buttonSaveUsername.visibility = View.VISIBLE
             buttonEditUsername.visibility = View.INVISIBLE
-
-            // ★ 注意書きを表示
             textCharLimit.visibility = View.VISIBLE
         }
 
-        // 保存ボタン
         buttonSaveUsername.setOnClickListener {
             saveUsername()
         }
@@ -118,12 +121,6 @@ class AccountSettingsActivity : AppCompatActivity() {
             return
         }
 
-        // ★ 必要であればここで文字数チェックを追加することも可能
-        if (newName.length > 20) {
-            Toast.makeText(this, "20文字以内で入力してください", Toast.LENGTH_SHORT).show()
-            return
-        }
-
         val profileUpdates = UserProfileChangeRequest.Builder()
             .setDisplayName(newName)
             .build()
@@ -137,14 +134,11 @@ class AccountSettingsActivity : AppCompatActivity() {
                         .addOnSuccessListener {
                             Toast.makeText(this, "更新しました", Toast.LENGTH_SHORT).show()
 
-                            // 編集モード終了
                             editTextUsername.isEnabled = false
                             editTextUsername.setTextColor(Color.parseColor("#404040"))
 
                             buttonSaveUsername.visibility = View.GONE
                             buttonEditUsername.visibility = View.VISIBLE
-
-                            // ★ 注意書きを非表示
                             textCharLimit.visibility = View.GONE
                         }
                         .addOnFailureListener {

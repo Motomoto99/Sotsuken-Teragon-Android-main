@@ -10,13 +10,19 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding // ★ 追加
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 class NotificationActivity : AppCompatActivity() {
 
     private lateinit var textLatestMessage: TextView
-    private lateinit var textUnreadCount: TextView // ★ 追加
+    private lateinit var textUnreadCount: TextView
+    private lateinit var textTime: TextView
+    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,32 +30,88 @@ class NotificationActivity : AppCompatActivity() {
         setContentView(R.layout.activity_notification)
 
         textLatestMessage = findViewById(R.id.textLatestMessage)
-        textUnreadCount = findViewById(R.id.textUnreadCount) // ★ 追加
+        textUnreadCount = findViewById(R.id.textUnreadCount)
+        textTime = findViewById(R.id.textTime)
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout)
+
         val backButton = findViewById<ImageButton>(R.id.buttonBack)
         val buttonAdminChat = findViewById<View>(R.id.buttonAdminChat)
+        val header = findViewById<View>(R.id.header) // ★ 追加
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+        // ★★★ WindowInsets設定 (ヘッダーにパディング適用) ★★★
+        ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
+            v.updatePadding(top = systemBars.top + originalPaddingTop)
             insets
         }
 
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(systemBars.left, 0, systemBars.right, systemBars.bottom)
+            insets
+        }
+
+        // --- 以下、変更なし ---
         backButton.setOnClickListener { finish() }
 
         buttonAdminChat.setOnClickListener {
             val intent = Intent(this, AdminChatActivity::class.java)
             startActivity(intent)
         }
+
+        swipeRefreshLayout.setColorSchemeColors(android.graphics.Color.parseColor("#4CAF50"))
+
+        swipeRefreshLayout.setOnRefreshListener {
+            refreshData()
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        updateLatestMessage()
-        updateUnreadCount() // ★ 追加: 未読数を更新
+        refreshData()
     }
 
-    // ★★★ 追加: 未読数をカウントして表示する ★★★
-    private fun updateUnreadCount() {
+    private fun refreshData() {
+        updateLatestMessage {
+            updateUnreadCount {
+                swipeRefreshLayout.isRefreshing = false
+            }
+        }
+    }
+
+    private fun updateLatestMessage(onComplete: () -> Unit = {}) {
+        val db = FirebaseFirestore.getInstance()
+
+        db.collection("notifications")
+            .orderBy("date", Query.Direction.DESCENDING)
+            .limit(1)
+            .get()
+            .addOnSuccessListener { documents ->
+                if (!documents.isEmpty) {
+                    val notification = documents.documents[0].toObject(Notification::class.java)
+                    textLatestMessage.text = notification?.content ?: ""
+
+                    if (notification?.date != null) {
+                        val sdf = SimpleDateFormat("MM/dd HH:mm", Locale.JAPAN)
+                        textTime.text = sdf.format(notification.date.toDate())
+                    } else {
+                        textTime.text = ""
+                    }
+                } else {
+                    textLatestMessage.text = "現在、お知らせはありません"
+                    textTime.text = ""
+                }
+                onComplete()
+            }
+            .addOnFailureListener {
+                textLatestMessage.text = "読み込みに失敗しました"
+                textTime.text = ""
+                onComplete()
+            }
+    }
+
+    private fun updateUnreadCount(onComplete: () -> Unit = {}) {
         val db = FirebaseFirestore.getInstance()
         val prefs = getSharedPreferences("prefs_notification", Context.MODE_PRIVATE)
         val lastSeenTime = prefs.getLong("last_seen_timestamp", 0L)
@@ -60,7 +122,6 @@ class NotificationActivity : AppCompatActivity() {
                 for (document in result) {
                     val notification = document.toObject(Notification::class.java)
                     val date = notification.date
-                    // 最後に見た時間より新しいものをカウント
                     if (date != null && date.toDate().time > lastSeenTime) {
                         unreadCount++
                     }
@@ -72,29 +133,11 @@ class NotificationActivity : AppCompatActivity() {
                 } else {
                     textUnreadCount.visibility = View.GONE
                 }
+                onComplete()
             }
             .addOnFailureListener {
                 textUnreadCount.visibility = View.GONE
-            }
-    }
-
-    private fun updateLatestMessage() {
-        val db = FirebaseFirestore.getInstance()
-
-        db.collection("notifications")
-            .orderBy("date", Query.Direction.DESCENDING)
-            .limit(1)
-            .get()
-            .addOnSuccessListener { documents ->
-                if (!documents.isEmpty) {
-                    val notification = documents.documents[0].toObject(Notification::class.java)
-                    textLatestMessage.text = notification?.content ?: ""
-                } else {
-                    textLatestMessage.text = "現在、お知らせはありません"
-                }
-            }
-            .addOnFailureListener {
-                textLatestMessage.text = "読み込みに失敗しました"
+                onComplete()
             }
     }
 }
