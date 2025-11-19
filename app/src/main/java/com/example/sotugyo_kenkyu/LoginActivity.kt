@@ -67,6 +67,8 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
+    
+
     /**
      * Googleログインの設定
      */
