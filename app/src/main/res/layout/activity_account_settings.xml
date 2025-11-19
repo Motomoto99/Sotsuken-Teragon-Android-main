@@ -59,8 +59,8 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/imageViewUserIcon">
 
-        <TextView
-            android:id="@+id/textViewUsername"
+        <EditText
+            android:id="@+id/UsernameEdit"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:text="初期ユーザー"

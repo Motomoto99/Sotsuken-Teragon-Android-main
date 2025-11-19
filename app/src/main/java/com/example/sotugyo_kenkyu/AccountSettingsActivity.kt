@@ -3,8 +3,8 @@ package com.example.sotugyo_kenkyu
 import android.content.Intent // ★ インポート
 import android.os.Bundle
 import android.widget.Button // ★ インポート
+import android.widget.EditText
 import android.widget.ImageButton
-import android.widget.TextView
 import android.widget.Toast // ★ インポート
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -61,7 +61,7 @@ class AccountSettingsActivity : AppCompatActivity() {
 
         //ユーザ名変更ボタン（鉛筆マーク）を押したとき
         val usernameedit : ImageButton = findViewById(R.id.buttonEditUsername)
-        val usernamedisp : TextView = findViewById(R.id.textViewUsername)
+        val usernamedisp : EditText = findViewById(R.id.UsernameEdit)
 
         usernameedit.setOnClickListener {
             val user = FirebaseAuth.getInstance().currentUser
