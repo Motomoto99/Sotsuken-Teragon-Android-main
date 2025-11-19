@@ -1,9 +1,11 @@
 package com.example.sotugyo_kenkyu
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Button // Buttonをインポート
 import android.widget.EditText // EditTextをインポート
 import android.widget.ImageButton // ImageButtonをインポート
+import android.widget.TextView // TextViewを使うため
 import android.widget.Toast // Toast（通知）をインポート
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -32,6 +34,8 @@ class EmailLoginActivity : AppCompatActivity() {
         val emailEditText: EditText = findViewById(R.id.editTextEmail)
         val passwordEditText: EditText = findViewById(R.id.editTextPassword)
         val loginButton: Button = findViewById(R.id.buttonLogin)
+        val forgotPasswordTextView: TextView = findViewById(R.id.textViewForgotPassword)
+
 
 
         // Android 10以降の全画面表示（ステータスバーなど）の調整
@@ -58,21 +62,21 @@ class EmailLoginActivity : AppCompatActivity() {
                     if (task.isSuccessful) {
                         // ログイン成功
                         Toast.makeText(this, "ログインしました", Toast.LENGTH_SHORT).show()
-
-                        // HomeActivityがまだ無いので、遷移処理はコメントアウト
-                        /*
                         val intent = Intent(this, HomeActivity::class.java)
                         startActivity(intent)
-                        finish() // このログイン画面を閉じる
-                        */
                     } else {
                         // ログイン失敗
-                        Toast.makeText(this, "ログインに失敗しました: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this, "ログインに失敗しました", Toast.LENGTH_SHORT).show()
                     }
                 }
         }
+        // 「パスワードを忘れた方」が押されたら遷移
+        forgotPasswordTextView.setOnClickListener {
+            val intent = Intent(this, ForgotPasswordActivity::class.java)
+            startActivity(intent)
+        }
 
-        // --- 3. 戻るボタンが押された時の処理 ---
+        // --- 2. 戻るボタンが押された時の処理 ---
         backButton.setOnClickListener {
             finish() // この画面(Activity)を閉じて、前の画面に戻る
         }

@@ -52,7 +52,8 @@
         app:layout_constraintBottom_toTopOf="@+id/labelPassword"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/labelEmail" />
+        app:layout_constraintTop_toBottomOf="@+id/labelEmail"
+        android:digits="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@.-+"/>/>
 
     <TextView
         android:id="@+id/labelPassword"
@@ -78,7 +79,8 @@
         app:layout_constraintBottom_toTopOf="@+id/labelPasswordConfirm"
         app:layout_constraintEnd_toEndOf="@+id/editTextEmail"
         app:layout_constraintStart_toStartOf="@+id/editTextEmail"
-        app:layout_constraintTop_toBottomOf="@+id/labelPassword" />
+        app:layout_constraintTop_toBottomOf="@+id/labelPassword"
+        android:digits="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@.-+^$*.[]{}()?!@#%/\,>':;|_~"/>
 
     <TextView
         android:id="@+id/labelPasswordConfirm"
@@ -104,7 +106,8 @@
         app:layout_constraintBottom_toTopOf="@+id/buttonRegister"
         app:layout_constraintEnd_toEndOf="@+id/editTextEmail"
         app:layout_constraintStart_toStartOf="@+id/editTextEmail"
-        app:layout_constraintTop_toBottomOf="@+id/labelPasswordConfirm" />
+        app:layout_constraintTop_toBottomOf="@+id/labelPasswordConfirm"
+        android:digits="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@.-+^$*.[]{}()?!@#%/\,>':;|_~"/>
 
     <Button
         android:id="@+id/buttonRegister"
