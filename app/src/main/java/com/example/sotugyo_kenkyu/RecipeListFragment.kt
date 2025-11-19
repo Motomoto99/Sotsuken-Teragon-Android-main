@@ -62,7 +62,9 @@ class RecipeListFragment : Fragment() {
     }
 
     private fun fetchRecipesByCategoryId(categoryId: String) {
-        // ★重要: categoryPathIds配列の中に、指定したIDが含まれているか検索
+        // デバッグログ：何を探そうとしているか表示
+        Log.d("RecipeDebug", "★検索開始: ID='$categoryId' を含むレシピを探します")
+
         db.collection("recipes")
             .whereArrayContains("categoryPathIds", categoryId)
             .get()
@@ -72,28 +74,32 @@ class RecipeListFragment : Fragment() {
                     try {
                         val recipe = document.toObject(Recipe::class.java)
                         recipeList.add(recipe)
+                        // 見つかったレシピのタイトルをログに出す
+                        Log.d("RecipeDebug", "〇 発見: ${recipe.recipeTitle}")
                     } catch (e: Exception) {
-                        Log.e("RecipeList", "Parse Error", e)
+                        Log.e("RecipeDebug", "変換エラー", e)
                     }
                 }
 
+                // ★ここが重要！
+                // もし0件だった場合、そのカテゴリ（親ID）のデータを全件取ってきて、
+                // 「本当はどんなIDが入っているのか」をログに出してカンニングします。
                 if (recipeList.isEmpty()) {
+                    Log.e("RecipeDebug", "× 0件でした。データの調査を開始します...")
+                    investigateRealIds(categoryId) // 下で作る関数を呼び出す
+
+                    // 画面には「ありません」を表示
                     Toast.makeText(context, "該当するレシピがありませんでした", Toast.LENGTH_SHORT).show()
                 }
 
-                // ★ここが変更点！
-                // リスト項目タップ時の処理(onItemClick)を追加しています
                 val adapter = RecipeAdapter(
                     recipeList,
                     onFavoriteClick = { recipe ->
-                        // お気に入り処理（後で実装）
                         Toast.makeText(context, "お気に入り: ${recipe.recipeTitle}", Toast.LENGTH_SHORT).show()
                     },
                     onItemClick = { recipe ->
-                        // ★詳細画面へ遷移する処理
                         val fragment = RecipeDetailFragment()
                         val args = Bundle()
-                        // Recipeクラスは Serializable なのでそのまま渡せます
                         args.putSerializable("RECIPE_DATA", recipe)
                         fragment.arguments = args
 
@@ -107,6 +113,33 @@ class RecipeListFragment : Fragment() {
             }
             .addOnFailureListener { e ->
                 Toast.makeText(context, "読み込みエラー: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    // ★追加：データの中身を覗き見るための調査用関数
+    private fun investigateRealIds(targetId: String) {
+        // ターゲットIDのハイフンより前（親ID）を取得。例: "10-276" -> "10"
+        val parentId = targetId.split("-").firstOrNull() ?: return
+
+        Log.d("RecipeDebug", "親ID '$parentId' を持つデータを全検索して、正しいサブIDを調べます...")
+
+        db.collection("recipes")
+            .whereArrayContains("categoryPathIds", parentId)
+            .limit(10) // 全部見ると多いので10件だけ
+            .get()
+            .addOnSuccessListener { documents ->
+                for (doc in documents) {
+                    val ids = doc.get("categoryPathIds") as? List<String>
+                    val names = doc.get("categoryPathNames") as? List<String>
+                    val title = doc.getString("recipeTitle")
+
+                    Log.d("RecipeDebug", "--------------------------------------")
+                    Log.d("RecipeDebug", "料理名: $title")
+                    Log.d("RecipeDebug", "入っているID: $ids")
+                    Log.d("RecipeDebug", "入っている名前: $names")
+                }
+                Log.d("RecipeDebug", "--------------------------------------")
+                Log.d("RecipeDebug", "↑ このログに出てくるIDを SubCategoryFragment に書けば動きます！")
             }
     }
 }

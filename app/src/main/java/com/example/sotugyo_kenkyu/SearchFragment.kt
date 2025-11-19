@@ -60,10 +60,12 @@ class SearchFragment : Fragment() {
         icon.setImageResource(iconRes)
 
         layout.setOnClickListener {
-            val fragment = RecipeListFragment()
+            // ★ここを変更！
+            // RecipeListFragment ではなく SubCategoryFragment へ遷移
+            val fragment = SubCategoryFragment()
             val args = Bundle()
-            args.putString("CATEGORY_ID", id)
-            args.putString("CATEGORY_NAME", "$name レシピ")
+            args.putString("PARENT_ID", id)
+            args.putString("PARENT_NAME", name)
             fragment.arguments = args
 
             parentFragmentManager.beginTransaction()
