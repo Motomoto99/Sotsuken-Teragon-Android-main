@@ -36,17 +36,24 @@
         app:layout_constraintStart_toEndOf="@+id/buttonBack"
         app:layout_constraintTop_toTopOf="@+id/buttonBack" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerViewNotifications"
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefreshLayout"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginTop="16dp"
-        android:clipToPadding="false"
-        android:padding="16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewTitle" />
+        app:layout_constraintTop_toBottomOf="@+id/textViewTitle">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerViewNotifications"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:padding="16dp" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     <TextView
         android:id="@+id/textNoData"

@@ -11,23 +11,19 @@ import java.util.Locale
 class NotificationAdapter(private val notificationList: List<Notification>) :
     RecyclerView.Adapter<NotificationAdapter.NotificationViewHolder>() {
 
-    // 1行分の見た目を生成
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): NotificationViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_notification, parent, false)
         return NotificationViewHolder(view)
     }
 
-    // データをViewにセット
     override fun onBindViewHolder(holder: NotificationViewHolder, position: Int) {
         val notification = notificationList[position]
         holder.bind(notification)
     }
 
-    // リストの件数を返す
     override fun getItemCount(): Int = notificationList.size
 
-    // ViewHolderクラス
     class NotificationViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val title: TextView = itemView.findViewById(R.id.textTitle)
         private val content: TextView = itemView.findViewById(R.id.textContent)
@@ -37,9 +33,9 @@ class NotificationAdapter(private val notificationList: List<Notification>) :
             title.text = notification.title
             content.text = notification.content
 
-            // 日付のフォーマット変換 (Timestamp -> String)
             if (notification.date != null) {
-                val sdf = SimpleDateFormat("yyyy/MM/dd", Locale.JAPAN)
+                // ★★★ 変更点: 時間も表示するフォーマットに変更 ★★★
+                val sdf = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.JAPAN)
                 date.text = sdf.format(notification.date.toDate())
             } else {
                 date.text = ""

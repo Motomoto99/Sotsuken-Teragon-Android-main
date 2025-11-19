@@ -77,5 +77,8 @@ dependencies {
     //splashscreenを使用する際に必要
     implementation("androidx.core:core-splashscreen:1.0.1")
 
+    // ★★★ 追加: 下に引っ張って更新するためのライブラリ ★★★
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+
 
 }

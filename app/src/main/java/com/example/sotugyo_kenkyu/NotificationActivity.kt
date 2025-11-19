@@ -11,6 +11,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout // ★ 追加
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 
@@ -19,24 +20,22 @@ class NotificationActivity : AppCompatActivity() {
     private lateinit var db: FirebaseFirestore
     private lateinit var recyclerView: RecyclerView
     private lateinit var textNoData: TextView
+    private lateinit var swipeRefreshLayout: SwipeRefreshLayout // ★ 追加
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_notification)
 
-        // Firestoreの初期化
         db = FirebaseFirestore.getInstance()
 
-        // Viewの取得
         recyclerView = findViewById(R.id.recyclerViewNotifications)
         textNoData = findViewById(R.id.textNoData)
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout) // ★ 追加
         val backButton = findViewById<ImageButton>(R.id.buttonBack)
 
-        // レイアウトマネージャーの設定（縦並びリスト）
         recyclerView.layoutManager = LinearLayoutManager(this)
 
-        // WindowInsets調整
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -45,31 +44,44 @@ class NotificationActivity : AppCompatActivity() {
 
         backButton.setOnClickListener { finish() }
 
-        // お知らせデータの取得
+        // ★★★ 追加: 引っ張って更新のリスナー ★★★
+        swipeRefreshLayout.setOnRefreshListener {
+            fetchNotifications()
+        }
+
+        // データ取得
         fetchNotifications()
     }
 
     private fun fetchNotifications() {
-        // "notifications" コレクションから、日付(date)の新しい順に取得
+        // 読み込み開始時にグルグルを表示（初回ロード用）
+        // swipeRefreshLayout.isRefreshing = true
+        // ↑ これを入れると自動で回りますが、初回は不要ならコメントアウトでもOK
+
         db.collection("notifications")
             .orderBy("date", Query.Direction.DESCENDING)
             .get()
             .addOnSuccessListener { result ->
+                // ★★★ 追加: 読み込み完了したらグルグルを止める ★★★
+                swipeRefreshLayout.isRefreshing = false
+
                 val notificationList = ArrayList<Notification>()
 
                 for (document in result) {
-                    // FirestoreのドキュメントをNotificationクラスに変換
                     val notification = document.toObject(Notification::class.java)
                     notificationList.add(notification)
                 }
 
                 if (notificationList.isEmpty()) {
                     // データがない場合
-                    recyclerView.visibility = View.GONE
+                    // ★ 変更: RecyclerViewは消さずに、textNoDataだけ出す
+                    // (RecyclerViewを消すと引っ張って更新ができなくなることがあるため)
                     textNoData.visibility = View.VISIBLE
+
+                    // 空リストをセットしてクリア
+                    recyclerView.adapter = NotificationAdapter(emptyList())
                 } else {
-                    // データがある場合、アダプターにセットして表示
-                    recyclerView.visibility = View.VISIBLE
+                    // データがある場合
                     textNoData.visibility = View.GONE
 
                     val adapter = NotificationAdapter(notificationList)
@@ -77,6 +89,8 @@ class NotificationActivity : AppCompatActivity() {
                 }
             }
             .addOnFailureListener { exception ->
+                // ★★★ 追加: エラー時もグルグルを止める ★★★
+                swipeRefreshLayout.isRefreshing = false
                 Toast.makeText(this, "データの取得に失敗しました: ${exception.message}", Toast.LENGTH_SHORT).show()
             }
     }
