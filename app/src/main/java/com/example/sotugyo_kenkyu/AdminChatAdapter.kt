@@ -3,11 +3,13 @@ package com.example.sotugyo_kenkyu
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView // ★ 追加
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide // ★ 追加
 import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
-import java.util.Date // Date型を使用するために追加
 
 class AdminChatAdapter(private val notificationList: List<Notification>) :
     RecyclerView.Adapter<AdminChatAdapter.ChatViewHolder>() {
@@ -21,14 +23,12 @@ class AdminChatAdapter(private val notificationList: List<Notification>) :
     override fun onBindViewHolder(holder: ChatViewHolder, position: Int) {
         val currentItem = notificationList[position]
 
-        // ★★★ 日付ヘッダーを表示するか判定 ★★★
+        // 日付ヘッダーを表示するか判定
         var showDateHeader = false
         if (position == 0) {
-            // リストの最初は必ず日付を表示
             showDateHeader = true
         } else {
             val prevItem = notificationList[position - 1]
-            // 1つ前のメッセージと日付が違うなら表示
             if (!isSameDate(currentItem.date?.toDate(), prevItem.date?.toDate())) {
                 showDateHeader = true
             }
@@ -49,21 +49,27 @@ class AdminChatAdapter(private val notificationList: List<Notification>) :
     class ChatViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val content: TextView = itemView.findViewById(R.id.textContent)
         private val time: TextView = itemView.findViewById(R.id.textTime)
-        private val dateHeader: TextView = itemView.findViewById(R.id.textDateHeader) // ★ 追加
+        private val dateHeader: TextView = itemView.findViewById(R.id.textDateHeader)
+        private val imageIcon: ImageView = itemView.findViewById(R.id.imageIcon) // ★ 追加
 
         fun bind(notification: Notification, showDateHeader: Boolean) {
             content.text = notification.content
 
+            // ★★★ 追加: 運営アイコンを丸く表示 ★★★
+            Glide.with(itemView.context)
+                .load(R.drawable.new_splash_icon) // 運営アイコン画像
+                .circleCrop() // 丸く切り抜く
+                .into(imageIcon)
+
             if (notification.date != null) {
                 val date = notification.date.toDate()
 
-                // ★★★ 時間のみ表示 (例: 12:00) ★★★
+                // 時間のみ表示
                 val timeFormat = SimpleDateFormat("HH:mm", Locale.JAPAN)
                 time.text = timeFormat.format(date)
 
-                // ★★★ 日付ヘッダーの表示切り替え ★★★
+                // 日付ヘッダーの表示切り替え
                 if (showDateHeader) {
-                    // 例: 2023/11/20(月)
                     val dateFormat = SimpleDateFormat("yyyy/MM/dd(E)", Locale.JAPAN)
                     dateHeader.text = dateFormat.format(date)
                     dateHeader.visibility = View.VISIBLE

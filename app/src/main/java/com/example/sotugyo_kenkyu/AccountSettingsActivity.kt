@@ -3,34 +3,47 @@ package com.example.sotugyo_kenkyu
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AlertDialog // ★ 追加
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import com.bumptech.glide.Glide
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.storage.FirebaseStorage
 
 class AccountSettingsActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var db: FirebaseFirestore
+    private lateinit var storage: FirebaseStorage
 
+    private lateinit var imageViewUserIcon: ImageView
     private lateinit var editTextUsername: EditText
     private lateinit var buttonEditUsername: ImageButton
     private lateinit var buttonSaveUsername: Button
     private lateinit var textCharLimit: TextView
+
+    private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let {
+            uploadImage(it)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,8 +52,12 @@ class AccountSettingsActivity : AppCompatActivity() {
 
         auth = FirebaseAuth.getInstance()
         db = FirebaseFirestore.getInstance()
+        storage = FirebaseStorage.getInstance()
 
         // Viewの取得
+        imageViewUserIcon = findViewById(R.id.imageViewUserIcon)
+        val buttonEditIcon = findViewById<ImageButton>(R.id.buttonEditIcon)
+
         editTextUsername = findViewById(R.id.editTextUsername)
         buttonEditUsername = findViewById(R.id.buttonEditUsername)
         buttonSaveUsername = findViewById(R.id.buttonSaveUsername)
@@ -52,7 +69,7 @@ class AccountSettingsActivity : AppCompatActivity() {
         val menuAllergy = findViewById<View>(R.id.menuAllergySettings)
         val menuSignOut = findViewById<View>(R.id.menuSignOut)
 
-        // WindowInsets (ヘッダーのパディング調整)
+        // WindowInsets設定
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
@@ -75,15 +92,17 @@ class AccountSettingsActivity : AppCompatActivity() {
         // --- リスナー設定 ---
         backButton.setOnClickListener { finish() }
 
-        // アレルギー設定画面へ遷移
         menuAllergy.setOnClickListener {
             val intent = Intent(this, AllergySettingsActivity::class.java)
             startActivity(intent)
         }
 
-        // ★★★ 修正箇所: サインアウト確認ダイアログを表示 ★★★
         menuSignOut.setOnClickListener {
             showSignOutConfirmation()
+        }
+
+        buttonEditIcon.setOnClickListener {
+            pickImageLauncher.launch("image/*")
         }
 
         // ユーザー名編集ロジック
@@ -104,31 +123,39 @@ class AccountSettingsActivity : AppCompatActivity() {
         }
     }
 
-    // ★★★ 追加: 確認ダイアログ表示メソッド ★★★
     private fun showSignOutConfirmation() {
         AlertDialog.Builder(this)
             .setTitle("サインアウト")
             .setMessage("本当にサインアウトしますか？")
             .setPositiveButton("サインアウト") { _, _ ->
-                // 「サインアウト」が押されたら実行
-                performSignOut()
+                auth.signOut()
+                Toast.makeText(this, "サインアウトしました", Toast.LENGTH_SHORT).show()
+                val intent = Intent(this, LoginActivity::class.java)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                startActivity(intent)
+                finish()
             }
-            .setNegativeButton("キャンセル", null) // キャンセルなら何もしない
+            .setNegativeButton("キャンセル", null)
             .show()
-    }
-
-    // ★★★ 追加: 実際のサインアウト処理 ★★★
-    private fun performSignOut() {
-        auth.signOut()
-        Toast.makeText(this, "サインアウトしました", Toast.LENGTH_SHORT).show()
-        val intent = Intent(this, LoginActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        startActivity(intent)
-        finish()
     }
 
     private fun loadUserProfile() {
         val user = auth.currentUser ?: return
+
+        // ★ Glideで画像をロードし、circleCrop()で丸くする
+        if (user.photoUrl != null) {
+            Glide.with(this)
+                .load(user.photoUrl)
+                .circleCrop() // ★ここが丸くする処理です
+                .into(imageViewUserIcon)
+        } else {
+            // デフォルトアイコンも丸く表示
+            Glide.with(this)
+                .load(R.drawable.outline_account_circle_24)
+                .circleCrop() // ★ここも丸くする処理です
+                .into(imageViewUserIcon)
+        }
+
         db.collection("users").document(user.uid).get()
             .addOnSuccessListener { document ->
                 val username = document?.getString("username")
@@ -141,12 +168,62 @@ class AccountSettingsActivity : AppCompatActivity() {
             }
     }
 
+    private fun uploadImage(imageUri: Uri) {
+        val user = auth.currentUser ?: return
+
+        Toast.makeText(this, "画像をアップロード中...", Toast.LENGTH_SHORT).show()
+
+        val storageRef = storage.reference.child("users/${user.uid}/profile.jpg")
+
+        storageRef.putFile(imageUri)
+            .addOnSuccessListener {
+                storageRef.downloadUrl.addOnSuccessListener { uri ->
+                    updateUserProfileImage(uri)
+                }
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "アップロード失敗: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    private fun updateUserProfileImage(uri: Uri) {
+        val user = auth.currentUser ?: return
+
+        val profileUpdates = UserProfileChangeRequest.Builder()
+            .setPhotoUri(uri)
+            .build()
+
+        user.updateProfile(profileUpdates)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val userData = hashMapOf("photoUrl" to uri.toString())
+                    db.collection("users").document(user.uid)
+                        .set(userData, SetOptions.merge())
+
+                    // ★ Glideで画像をロードし、circleCrop()で丸くする
+                    Glide.with(this)
+                        .load(uri)
+                        .circleCrop() // ★ここも丸くする処理です
+                        .into(imageViewUserIcon)
+
+                    Toast.makeText(this, "アイコンを変更しました", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "プロフィールの更新に失敗しました", Toast.LENGTH_SHORT).show()
+                }
+            }
+    }
+
     private fun saveUsername() {
         val newName = editTextUsername.text.toString().trim()
         val user = auth.currentUser ?: return
 
         if (newName.isEmpty()) {
             Toast.makeText(this, "ユーザー名を入力してください", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (newName.length > 20) {
+            Toast.makeText(this, "20文字以内で入力してください", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -167,7 +244,7 @@ class AccountSettingsActivity : AppCompatActivity() {
                             editTextUsername.setTextColor(Color.parseColor("#404040"))
 
                             buttonSaveUsername.visibility = View.GONE
-                            buttonEditUsername.visibility = View.VISIBLE
+                            buttonEditUsername.visibility = View.INVISIBLE
                             textCharLimit.visibility = View.GONE
                         }
                         .addOnFailureListener {
