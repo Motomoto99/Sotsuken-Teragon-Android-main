@@ -67,8 +67,8 @@ class AccountSettingsActivity : AppCompatActivity() {
         val header = findViewById<View>(R.id.header)
 
         val menuAllergy = findViewById<View>(R.id.menuAllergySettings)
+        val menuTerms = findViewById<View>(R.id.menuTerms) // ★追加: 利用規約ボタン
         val menuSignOut = findViewById<View>(R.id.menuSignOut)
-        val menuTerms = findViewById<View>(R.id.menuTerms) // ★ 追加: 利用規約ボタン取得
 
         // WindowInsets設定
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
@@ -98,8 +98,8 @@ class AccountSettingsActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
+        // ★追加: 利用規約画面へ遷移
         menuTerms.setOnClickListener {
-            // ブラウザではなくアプリ内の画面を開く
             val intent = Intent(this, TermsOfServiceActivity::class.java)
             startActivity(intent)
         }
@@ -149,17 +149,15 @@ class AccountSettingsActivity : AppCompatActivity() {
     private fun loadUserProfile() {
         val user = auth.currentUser ?: return
 
-        // ★ Glideで画像をロードし、circleCrop()で丸くする
         if (user.photoUrl != null) {
             Glide.with(this)
                 .load(user.photoUrl)
-                .circleCrop() // ★ここが丸くする処理です
+                .circleCrop()
                 .into(imageViewUserIcon)
         } else {
-            // デフォルトアイコンも丸く表示
             Glide.with(this)
                 .load(R.drawable.outline_account_circle_24)
-                .circleCrop() // ★ここも丸くする処理です
+                .circleCrop()
                 .into(imageViewUserIcon)
         }
 
@@ -207,10 +205,9 @@ class AccountSettingsActivity : AppCompatActivity() {
                     db.collection("users").document(user.uid)
                         .set(userData, SetOptions.merge())
 
-                    // ★ Glideで画像をロードし、circleCrop()で丸くする
                     Glide.with(this)
                         .load(uri)
-                        .circleCrop() // ★ここも丸くする処理です
+                        .circleCrop()
                         .into(imageViewUserIcon)
 
                     Toast.makeText(this, "アイコンを変更しました", Toast.LENGTH_SHORT).show()

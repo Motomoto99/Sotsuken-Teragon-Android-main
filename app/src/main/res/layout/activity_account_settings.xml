@@ -35,7 +35,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="アカウント"
+            android:text="アカウント設定"
             android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="#404040"
@@ -76,26 +76,27 @@
                         android:id="@+id/imageViewUserIcon"
                         android:layout_width="96dp"
                         android:layout_height="96dp"
-                        android:background="@drawable/circle_border_bg"  android:padding="2dp"
+                        android:background="@drawable/circle_border_bg"
+                        android:padding="2dp"
                         android:scaleType="centerCrop"
                         android:src="@drawable/outline_account_circle_24"
                         app:layout_constraintBottom_toBottomOf="parent"
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintStart_toStartOf="parent"
-                        app:layout_constraintTop_toTopOf="parent"
-                        /> <ImageButton
-                    android:id="@+id/buttonEditIcon"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:background="@drawable/rounded_button_bg"
-                    android:contentDescription="アイコンを変更"
-                    android:padding="6dp"
-                    android:scaleType="centerInside"
-                    android:src="@drawable/ic_edit"
-                    app:tint="@android:color/white"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent" />
+                        app:layout_constraintTop_toTopOf="parent" />
 
+                    <ImageButton
+                        android:id="@+id/buttonEditIcon"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="@drawable/rounded_button_bg"
+                        android:contentDescription="アイコンを変更"
+                        android:padding="6dp"
+                        android:scaleType="centerInside"
+                        android:src="@drawable/ic_edit"
+                        app:tint="@android:color/white"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent" />
                 </androidx.constraintlayout.widget.ConstraintLayout>
 
                 <TextView
@@ -258,6 +259,8 @@
                     android:rotation="180"
                     app:tint="#CCCCCC"/>
             </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#EEEEEE" />
 
             <LinearLayout
                 android:id="@+id/menuSignOut"

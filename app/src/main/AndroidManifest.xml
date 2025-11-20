@@ -12,6 +12,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Sotugyo_kenkyu">
         <activity
+            android:name=".TermsOfServiceActivity"
+            android:exported="false" />
+        <activity
             android:name=".AccountSettingsActivity"
             android:exported="false" />
         <activity
