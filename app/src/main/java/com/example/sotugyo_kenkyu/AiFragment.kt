@@ -11,11 +11,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.firebase.FirebaseApp
-import com.google.firebase.ai.Chat
-import com.google.firebase.ai.FirebaseAI
 import kotlinx.coroutines.launch
-import kotlin.text.replace
 
 class AiFragment : Fragment() {
 
@@ -23,33 +19,12 @@ class AiFragment : Fragment() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var editTextMessage: EditText
     private lateinit var buttonSend: ImageButton
-
     private lateinit var buttonChatList: ImageButton
+    private lateinit var buttonNewChat: ImageButton
 
-
-    // --- Chat 表示用 ---
+    // --- 表示用メッセージ ---
     private lateinit var chatAdapter: ChatAdapter
     private val messages = mutableListOf<ChatMessage>()
-
-    // ★使うモデル名（1.5系は廃止なので2.x系）
-    private val MODEL_NAME = "gemini-2.5-flash"
-
-    // Firebase AI モデル
-    private val generativeModel by lazy {
-        val app = FirebaseApp.getInstance()
-        FirebaseAI.getInstance(app).generativeModel(MODEL_NAME)
-    }
-
-    // 実際に会話に使う Chat インスタンス
-    private var chat: Chat? = null
-
-    // Firestore 上のチャットID（users/{uid}/chats/{chatId}）
-    private var currentChatId: String? = null
-
-    // 最初のユーザーメッセージを送ったかどうか（タイトル自動設定用）
-    private var firstUserMessageSent = false
-
-    // -------------------- Lifecycle --------------------
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -65,12 +40,8 @@ class AiFragment : Fragment() {
         recyclerView = view.findViewById(R.id.recyclerViewChat)
         editTextMessage = view.findViewById(R.id.editTextMessage)
         buttonSend = view.findViewById(R.id.buttonSend)
-
         buttonChatList = view.findViewById(R.id.buttonChatList)
-        buttonChatList.setOnClickListener {
-            openChatList()
-        }
-
+        buttonNewChat = view.findViewById(R.id.buttonNewChat)
 
         recyclerView.layoutManager = LinearLayoutManager(requireContext()).apply {
             stackFromEnd = true
@@ -78,117 +49,77 @@ class AiFragment : Fragment() {
         chatAdapter = ChatAdapter(messages)
         recyclerView.adapter = chatAdapter
 
-        // 引数に chatId が渡されている場合 → 過去チャットを開く
-        val argChatId = arguments?.getString("chatId")
-
-        // 初期化が終わるまで送信ボタンを無効
+        // 初期状態では送信不可（セッション準備が終わったら有効にする）
         buttonSend.isEnabled = false
+
+        val argChatId = arguments?.getString("chatId")
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                if (argChatId == null) {
-                    // 新しいチャット
-                    startNewChat()
-                } else {
-                    // 既存チャットを読み込み
+                if (argChatId != null) {
+                    // ★ 過去チャットの続き
                     loadExistingChat(argChatId)
+                    buttonSend.isEnabled = true
+                } else {
+                    // ★ 新規 or ログイン直後
+                    // ログイン時に ensureSessionInitialized() を呼んでおけばここは通らなくてもOKだけど、
+                    // 念のためここでも呼んでおくと安心。
+                    AiChatSessionManager.ensureSessionInitialized()
+                    buttonSend.isEnabled = true
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 Toast.makeText(requireContext(), "チャット初期化でエラーが発生しました", Toast.LENGTH_SHORT).show()
-            } finally {
-                buttonSend.isEnabled = true
             }
         }
 
-        buttonSend.setOnClickListener {
-            sendMessage()
+        buttonSend.setOnClickListener { sendMessage() }
+        buttonChatList.setOnClickListener { openChatList() }
+
+        buttonNewChat.setOnClickListener {
+            // 「新しいチャット」押下 → AI セッションだけ切り替え、DB はまだ作らない
+            viewLifecycleOwner.lifecycleScope.launch {
+                try {
+                    buttonSend.isEnabled = false
+                    AiChatSessionManager.startNewSession()
+                    messages.clear()
+                    chatAdapter.notifyDataSetChanged()
+                    scrollToBottom()
+                    buttonSend.isEnabled = true
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    Toast.makeText(requireContext(), "新しいチャットの準備に失敗しました", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
-    // -------------------- プロンプト関連 --------------------
+    // ---------------- 過去チャットの続き ----------------
 
-    /**
-     * Firestore から取得した長文プロンプトを組み立てる
-     */
-    private suspend fun buildInitialPrompt(): String {
-        val systemPrompt = PromptRepository.getSystemPrompt()
-        return """
-$systemPrompt
-
-以上の方針に従って、今後のチャットに回答してください。
-""".trimIndent()
-    }
-
-    /**
-     * 一時チャットに初期プロンプトだけ送って、
-     * その history を引き継いだ Chat を返す。
-     * → busy エラーを避ける構成。
-     */
-    private suspend fun createChatWithPrompt(): Chat {
-        val initialPrompt = buildInitialPrompt()
-
-        // 一時チャット
-        val tempChat = generativeModel.startChat()
-        tempChat.sendMessage(initialPrompt)
-
-        // history を引き継いだ本番チャット
-        return generativeModel.startChat(
-            history = tempChat.history
-        )
-    }
-
-    // -------------------- 新規チャット / 既存チャット --------------------
-
-    /**
-     * 新しいチャットを開始する。
-     * - Firestore に chat セッションを作成
-     * - ローカルのメッセージをクリア
-     * - 初期プロンプト適用済み Chat を生成
-     */
-    private suspend fun startNewChat() {
-        // Firestore に新しいチャットドキュメント作成
-        currentChatId = ChatRepository.createNewChatSession()
-        firstUserMessageSent = false
-
-        messages.clear()
-        chatAdapter.notifyDataSetChanged()
-
-        chat = createChatWithPrompt()
-    }
-
-    /**
-     * 既存チャットを読み込む（過去チャット閲覧＋続き）
-     */
     private suspend fun loadExistingChat(chatId: String) {
-        currentChatId = chatId
-        firstUserMessageSent = true // 既存チャットなのでタイトルは既にある前提
-
-        // Firestore からメッセージ履歴取得 → 画面に表示
+        // 1. Firestore からメッセージ履歴を取得して表示
         val list = ChatRepository.loadMessages(chatId)
         messages.clear()
         messages.addAll(list)
         chatAdapter.notifyDataSetChanged()
         scrollToBottom()
 
-        // AI 側のコンテキストも復元（簡易版：全文を順に送り直す）
-        val tempChat = generativeModel.startChat()
+        // 2. AI側のコンテキストを再構築
+        //   （簡易版：過去の発言を順番に全部送り直す）
+        val sessionChat = AiChatSessionManager.ensureSessionInitialized()
         for (m in list) {
-            tempChat.sendMessage(m.message)
+            sessionChat.sendMessage(m.message)
         }
-        chat = tempChat
+
+        // 3. 「このセッションは chatId に紐付いている」とマネージャに伝える
+        AiChatSessionManager.attachExistingChat(chatId)
     }
 
-    // -------------------- 送信処理 --------------------
+    // ---------------- 送信処理 ----------------
 
-    /**
-     * 送信ボタンタップ時
-     */
     private fun sendMessage() {
-        val currentChat = chat
-        val chatId = currentChatId
-
-        if (currentChat == null || chatId == null) {
+        val sessionChat = AiChatSessionManager.chat
+        if (sessionChat == null) {
             Toast.makeText(requireContext(), "チャットの準備中です…", Toast.LENGTH_SHORT).show()
             return
         }
@@ -201,42 +132,40 @@ $systemPrompt
         editTextMessage.text.clear()
         scrollToBottom()
 
-        // Firestore にユーザーメッセージ保存 ＋ タイトル自動設定
+        buttonSend.isEnabled = false
+
         viewLifecycleOwner.lifecycleScope.launch {
             try {
+                // ★ DB 上の chatId がまだ無ければ、このタイミングで初めて作成
+                var chatId = AiChatSessionManager.currentChatId
+                if (chatId == null) {
+                    chatId = ChatRepository.createNewChatSession()
+                    AiChatSessionManager.setChatId(chatId)
+                }
+
+                // ユーザーメッセージを Firestore に保存
                 ChatRepository.addMessage(chatId, role = "user", text = userMessageText)
 
-                if (!firstUserMessageSent) {
-                    firstUserMessageSent = true
+                // 1通目ならタイトルを自動生成
+                if (!AiChatSessionManager.firstUserMessageSent) {
+                    AiChatSessionManager.markFirstUserMessageSent()
                     val title = makeAutoTitleFromFirstMessage(userMessageText)
                     ChatRepository.updateChatTitle(chatId, title)
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
 
-        // 連打防止
-        buttonSend.isEnabled = false
-
-        // AI への問い合わせ
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                val response = currentChat.sendMessage(userMessageText)
+                // AI 応答
+                val response = sessionChat.sendMessage(userMessageText)
                 val aiResponseText = response.text ?: "回答がありませんでした"
 
-                // 画面に AI メッセージを追加
+                // UI に表示
                 addMessage(aiResponseText, isUser = false)
 
                 // Firestore に AI メッセージ保存
-                val id = currentChatId
-                if (id != null) {
-                    ChatRepository.addMessage(id, role = "assistant", text = aiResponseText)
-                }
+                ChatRepository.addMessage(chatId, role = "assistant", text = aiResponseText)
+
             } catch (e: Exception) {
                 val errorText = "エラーが発生しました: ${e.localizedMessage ?: e.toString()}"
                 addMessage(errorText, isUser = false)
-                Toast.makeText(requireContext(), "チャットでエラーが発生しました", Toast.LENGTH_SHORT).show()
                 e.printStackTrace()
             } finally {
                 buttonSend.isEnabled = true
@@ -245,7 +174,17 @@ $systemPrompt
         }
     }
 
-    // -------------------- UIヘルパー --------------------
+    // ---------------- 画面遷移 ----------------
+
+    private fun openChatList() {
+        val fragment = ChatListFragment()
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, fragment) // ← あなたのコンテナIDに合わせて変更済みだと思う
+            .addToBackStack(null)
+            .commit()
+    }
+
+    // ---------------- UIヘルパー ----------------
 
     private fun addMessage(text: String, isUser: Boolean) {
         messages.add(ChatMessage(message = text, isUser = isUser))
@@ -262,14 +201,6 @@ $systemPrompt
         super.onDestroyView()
         recyclerView.adapter = null
     }
-    private fun openChatList() {
-        val fragment = ChatListFragment()
-
-        parentFragmentManager.beginTransaction()
-            .replace(R.id.fragment_container, fragment) // ← ここはあなたのActivity側のコンテナIDに合わせて変更
-            .addToBackStack(null)
-            .commit()
-    }
 }
 
 /**
@@ -282,4 +213,3 @@ fun makeAutoTitleFromFirstMessage(text: String): String {
     val maxLen = 20
     return if (trimmed.length <= maxLen) trimmed else trimmed.take(maxLen) + "…"
 }
-

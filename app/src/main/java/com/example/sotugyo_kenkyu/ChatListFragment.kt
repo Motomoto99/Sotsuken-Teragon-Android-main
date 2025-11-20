@@ -1,5 +1,6 @@
 package com.example.sotugyo_kenkyu
 
+import android.app.AlertDialog
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -30,9 +31,17 @@ class ChatListFragment : Fragment() {
         recyclerView = view.findViewById(R.id.recyclerViewChatList)
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
 
-        adapter = ChatListAdapter(sessions) { session ->
-            openChat(session.id)
-        }
+        adapter = ChatListAdapter(
+            items = sessions,
+            onClick = { session ->
+                openChat(session.id)
+            },
+            onDelete = { session ->
+                confirmDelete(session)
+            }
+        )
+        recyclerView.adapter = adapter
+
         recyclerView.adapter = adapter
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -59,4 +68,26 @@ class ChatListFragment : Fragment() {
             .addToBackStack(null)
             .commit()
     }
+
+    private fun confirmDelete(session: ChatSession) {
+        val title = if (session.title.isNotBlank()) session.title else "このチャット"
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("チャットを削除しますか？")
+            .setMessage(title)
+            .setPositiveButton("削除") { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    try {
+                        ChatRepository.deleteChat(session.id)
+                        sessions.remove(session)
+                        adapter.notifyDataSetChanged()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+            .setNegativeButton("キャンセル", null)
+            .show()
+    }
 }
+

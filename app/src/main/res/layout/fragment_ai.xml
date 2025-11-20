@@ -24,6 +24,14 @@
             android:contentDescription="過去チャット一覧"
             android:padding="8dp"
             android:src="@android:drawable/ic_menu_more" />
+        <ImageButton
+            android:id="@+id/buttonNewChat"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="新しいチャット"
+            android:padding="8dp"
+            android:src="@android:drawable/ic_input_add" />
         <!-- ↑ 三点リーダーっぽいアイコン。自作のベクター(ic_more_vert)があればそっちでもOK -->
 
         <!-- 必要ならタイトルも -->

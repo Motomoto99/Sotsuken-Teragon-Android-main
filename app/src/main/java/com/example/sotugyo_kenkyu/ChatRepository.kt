@@ -132,4 +132,27 @@ object ChatRepository {
             ChatMessage(message = text, isUser = (role == "user"))
         }
     }
+    // ChatRepository.kt の中に追加（ファイルのどこでもOK）
+    suspend fun deleteChat(chatId: String) {
+        val uid = uidOrThrow()
+
+        val chatRef = db.collection("users")
+            .document(uid)
+            .collection("chats")
+            .document(chatId)
+
+        // messages コレクションの取得
+        val messagesSnap = chatRef.collection("messages").get().await()
+
+        // バッチで一括削除
+        db.runBatch { batch ->
+            // message 全削除
+            for (doc in messagesSnap.documents) {
+                batch.delete(doc.reference)
+            }
+            // chat 本体も削除
+            batch.delete(chatRef)
+        }.await()
+    }
+
 }
