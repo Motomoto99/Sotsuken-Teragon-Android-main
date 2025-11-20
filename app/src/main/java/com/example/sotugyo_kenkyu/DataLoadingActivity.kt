@@ -1,6 +1,7 @@
 package com.example.sotugyo_kenkyu
 
 import android.animation.ObjectAnimator
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.animation.DecelerateInterpolator
@@ -21,6 +22,9 @@ class DataLoadingActivity : AppCompatActivity() {
     private lateinit var progressBar: ProgressBar
     private lateinit var textLoading: TextView
 
+    // 未読数を保持する変数
+    private var initialUnreadCount: Int = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_data_loading)
@@ -28,81 +32,93 @@ class DataLoadingActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         textLoading = findViewById(R.id.textLoading)
 
-        // プログレスバーの最大値を100に設定
-        progressBar.max = 100
+        // XMLで指定した画像を表示しているので、ここのGlide処理は不要（前回のまま削除状態でOK）
+        // ※起動画面のイラストの話ではなく、ユーザーアイコンの「裏での先読み」の話です
 
-        // 読み込み開始
+        progressBar.max = 100
         startLoadingSequence()
     }
 
     private fun startLoadingSequence() {
-        // コルーチンを使って「データ読み込み」と「演出」を並行して行う
         lifecycleScope.launch {
-            // 1. 最初のステップ (0 -> 20%)
             updateProgress(20)
-            delay(300) // 少し待つ
+            delay(300)
 
-            // 2. 並行処理開始
-            // jobData: 実際のデータ読み込み（アイコン + お知らせ）
+            // データ読み込み実行
             val jobData = launch {
                 loadRealData()
             }
 
-            // 3. 演出用ステップ (40% -> 60% -> 80%)
-            // データ読み込みが終わっていても、演出として最低限ここまで見せる
             val steps = listOf(40, 60, 80)
             for (step in steps) {
                 updateProgress(step)
-                delay(400) // 各ステップで0.4秒ずつ待つ（刻む感じを出す）
+                delay(400)
             }
 
-            // 4. データ読み込みが終わるのを待つ
-            // (演出が先に80%まで行っても、データがまだならここで待機します)
             jobData.join()
 
-            // 5. 完了ステップ (100%)
             updateProgress(100)
-            delay(500) // 100%を見せる時間
+            delay(500)
 
-            // 6. ホーム画面へ
             goToHome()
         }
     }
 
-    // 実際のデータ取得処理
     private suspend fun loadRealData() {
         try {
-            // タスク1: アイコン画像 (キャッシュのみ、待機不要)
+            // ★★★ 修正1: アイコン先読み（circleCropを追加） ★★★
+            // これでホーム画面の設定と完全に一致し、キャッシュがヒットするようになります
             val user = FirebaseAuth.getInstance().currentUser
             if (user?.photoUrl != null) {
                 Glide.with(this@DataLoadingActivity)
                     .load(user.photoUrl)
+                    .circleCrop() // ★重要: ホーム画面と合わせる
                     .diskCacheStrategy(DiskCacheStrategy.ALL)
                     .preload()
             }
+            // 運営アイコンも先読み
+            Glide.with(this@DataLoadingActivity)
+                .load(R.drawable.ic_notifications)
+                .circleCrop()
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                .preload()
 
-            // タスク2: Firestoreのお知らせデータ (待機する)
+            // ★★★ 修正2: 未読数をここで計算する ★★★
             val db = FirebaseFirestore.getInstance()
-            db.collection("notifications").get().await()
+            val prefs = getSharedPreferences("prefs_notification", Context.MODE_PRIVATE)
+            val lastSeenTime = prefs.getLong("last_seen_timestamp", 0L)
+
+            val snapshot = db.collection("notifications").get().await()
+
+            // 未読カウント
+            var count = 0
+            for (doc in snapshot.documents) {
+                val notification = doc.toObject(Notification::class.java)
+                val date = notification?.date
+                if (date != null && date.toDate().time > lastSeenTime) {
+                    count++
+                }
+            }
+            initialUnreadCount = count // 結果を保存
 
         } catch (e: Exception) {
             e.printStackTrace()
-            // エラーでも進む（ホーム画面で再取得などさせるため）
         }
     }
 
-    // プログレスバーをアニメーション付きで更新
     private fun updateProgress(value: Int) {
         val animation = ObjectAnimator.ofInt(progressBar, "progress", progressBar.progress, value)
-        animation.duration = 300 // スムーズに動く時間
+        animation.duration = 300
         animation.interpolator = DecelerateInterpolator()
         animation.start()
-
         textLoading.text = "データを読み込んでいます... $value%"
     }
 
     private fun goToHome() {
         val intent = Intent(this, HomeActivity::class.java)
+        // ★ 計算した未読数を渡す
+        intent.putExtra("INITIAL_UNREAD_COUNT", initialUnreadCount)
+
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
         finish()
