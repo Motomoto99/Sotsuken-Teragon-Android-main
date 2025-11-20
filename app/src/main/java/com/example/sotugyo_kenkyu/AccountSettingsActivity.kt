@@ -68,6 +68,7 @@ class AccountSettingsActivity : AppCompatActivity() {
 
         val menuAllergy = findViewById<View>(R.id.menuAllergySettings)
         val menuSignOut = findViewById<View>(R.id.menuSignOut)
+        val menuTerms = findViewById<View>(R.id.menuTerms) // ★ 追加: 利用規約ボタン取得
 
         // WindowInsets設定
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
@@ -94,6 +95,12 @@ class AccountSettingsActivity : AppCompatActivity() {
 
         menuAllergy.setOnClickListener {
             val intent = Intent(this, AllergySettingsActivity::class.java)
+            startActivity(intent)
+        }
+
+        menuTerms.setOnClickListener {
+            // ブラウザではなくアプリ内の画面を開く
+            val intent = Intent(this, TermsOfServiceActivity::class.java)
             startActivity(intent)
         }
 

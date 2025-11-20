@@ -232,6 +232,34 @@
                 android:textSize="14sp" />
 
             <LinearLayout
+                android:id="@+id/menuTerms"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@android:color/white"
+                android:padding="16dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="利用規約"
+                    android:textSize="16sp"
+                    android:textColor="#000000" />
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/outline_arrow_back_24"
+                    android:rotation="180"
+                    app:tint="#CCCCCC"/>
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/menuSignOut"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
