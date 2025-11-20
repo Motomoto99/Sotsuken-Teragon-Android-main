@@ -18,6 +18,9 @@
             android:name=".AccountSettingsActivity"
             android:exported="false" />
         <activity
+            android:name=".AdminChatActivity"
+            android:exported="false" />
+        <activity
             android:name=".ForgotPasswordActivity"
             android:exported="false" />
         <activity
