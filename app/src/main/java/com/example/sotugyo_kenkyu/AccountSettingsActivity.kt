@@ -12,10 +12,11 @@ import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog // ★ 追加
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding // ★ 追加
+import androidx.core.view.updatePadding
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
@@ -44,43 +45,48 @@ class AccountSettingsActivity : AppCompatActivity() {
         buttonEditUsername = findViewById(R.id.buttonEditUsername)
         buttonSaveUsername = findViewById(R.id.buttonSaveUsername)
         textCharLimit = findViewById(R.id.textCharLimit)
-        val backButton = findViewById<ImageButton>(R.id.buttonBack)
-        val signOutButton = findViewById<Button>(R.id.buttonSignOut)
-        val header = findViewById<View>(R.id.header) // ★ 追加
 
-        // ★★★ WindowInsets設定 (ヘッダーにパディング適用) ★★★
+        val backButton = findViewById<ImageButton>(R.id.buttonBack)
+        val header = findViewById<View>(R.id.header)
+
+        val menuAllergy = findViewById<View>(R.id.menuAllergySettings)
+        val menuSignOut = findViewById<View>(R.id.menuSignOut)
+
+        // WindowInsets (ヘッダーのパディング調整)
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            // XMLの16dp + ステータスバーの高さ
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
             v.updatePadding(top = systemBars.top + originalPaddingTop)
             insets
         }
 
-        // メイン部分(下部のバー回避用)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, 0, systemBars.right, systemBars.bottom)
             insets
         }
 
-        // --- 以下、変更なし ---
+        // 初期設定
         editTextUsername.isEnabled = false
         editTextUsername.setTextColor(Color.parseColor("#404040"))
 
         loadUserProfile()
 
+        // --- リスナー設定 ---
         backButton.setOnClickListener { finish() }
 
-        signOutButton.setOnClickListener {
-            auth.signOut()
-            Toast.makeText(this, "サインアウトしました", Toast.LENGTH_SHORT).show()
-            val intent = Intent(this, LoginActivity::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        // アレルギー設定画面へ遷移
+        menuAllergy.setOnClickListener {
+            val intent = Intent(this, AllergySettingsActivity::class.java)
             startActivity(intent)
-            finish()
         }
 
+        // ★★★ 修正箇所: サインアウト確認ダイアログを表示 ★★★
+        menuSignOut.setOnClickListener {
+            showSignOutConfirmation()
+        }
+
+        // ユーザー名編集ロジック
         buttonEditUsername.setOnClickListener {
             editTextUsername.isEnabled = true
             editTextUsername.requestFocus()
@@ -96,6 +102,29 @@ class AccountSettingsActivity : AppCompatActivity() {
         buttonSaveUsername.setOnClickListener {
             saveUsername()
         }
+    }
+
+    // ★★★ 追加: 確認ダイアログ表示メソッド ★★★
+    private fun showSignOutConfirmation() {
+        AlertDialog.Builder(this)
+            .setTitle("サインアウト")
+            .setMessage("本当にサインアウトしますか？")
+            .setPositiveButton("サインアウト") { _, _ ->
+                // 「サインアウト」が押されたら実行
+                performSignOut()
+            }
+            .setNegativeButton("キャンセル", null) // キャンセルなら何もしない
+            .show()
+    }
+
+    // ★★★ 追加: 実際のサインアウト処理 ★★★
+    private fun performSignOut() {
+        auth.signOut()
+        Toast.makeText(this, "サインアウトしました", Toast.LENGTH_SHORT).show()
+        val intent = Intent(this, LoginActivity::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        startActivity(intent)
+        finish()
     }
 
     private fun loadUserProfile() {
