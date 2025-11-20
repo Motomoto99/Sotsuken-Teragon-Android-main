@@ -15,63 +15,53 @@ import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 
-/**
- * アプリ起動時の最初の画面（ログイン方法選択画面）
- */
 class LoginActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var googleSignInClient: GoogleSignInClient
 
-    // Googleログインの結果を受け取る
     private val googleSignInLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            // ActivityResultContracts では resultCode だけだとエラー理由が特定できないため
-            // 必ず「handleGoogleSignInResult」に渡して解析する
             handleGoogleSignInResult(result.data)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // スプラッシュ
         installSplashScreen()
-
-        // レイアウト読み込み
         setContentView(R.layout.activity_login)
 
-        // FirebaseAuth 初期化
         auth = FirebaseAuth.getInstance()
 
-        // Google ログイン設定
         setupGoogleLogin()
 
-        // ボタン取得
         val emailLoginButton = findViewById<MaterialButton>(R.id.emailLoginButton)
         val googleLoginButton = findViewById<MaterialButton>(R.id.googleLoginButton)
         val registerButton = findViewById<MaterialButton>(R.id.registerButton)
 
-        // メールログイン
         emailLoginButton.setOnClickListener {
             startActivity(Intent(this, EmailLoginActivity::class.java))
         }
 
-        // 新規登録
         registerButton.setOnClickListener {
             startActivity(Intent(this, RegisterActivity::class.java))
         }
 
-        // Googleログイン
         googleLoginButton.setOnClickListener {
             signInWithGoogle()
         }
     }
 
-    
+    // ★★★ 追加: 起動時にログイン状態をチェック ★★★
+    override fun onStart() {
+        super.onStart()
+        // すでにログインしているユーザーがいるか確認
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
+            // ログイン済みなら、ログイン画面をスキップして次へ
+            goToHomeScreen()
+        }
+    }
 
-    /**
-     * Googleログインの設定
-     */
     private fun setupGoogleLogin() {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken(getString(R.string.default_web_client_id))
@@ -81,17 +71,11 @@ class LoginActivity : AppCompatActivity() {
         googleSignInClient = GoogleSignIn.getClient(this, gso)
     }
 
-    /**
-     * Googleログイン画面を開く
-     */
     private fun signInWithGoogle() {
         val intent = googleSignInClient.signInIntent
         googleSignInLauncher.launch(intent)
     }
 
-    /**
-     * Googleログインの結果を処理し Firebase 認証に連携
-     */
     private fun handleGoogleSignInResult(data: Intent?) {
         try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(data)
@@ -118,11 +102,8 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * ホーム画面へ遷移
-     */
     private fun goToHomeScreen() {
-        // ★変更: HomeActivity ではなく DataLoadingActivity へ
+        // ★変更: HomeActivity ではなく DataLoadingActivity (読み込み画面) へ遷移
         val intent = Intent(this, DataLoadingActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
