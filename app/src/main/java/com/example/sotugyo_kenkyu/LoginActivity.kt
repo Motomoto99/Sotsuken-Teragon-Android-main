@@ -1,23 +1,26 @@
 package com.example.sotugyo_kenkyu
 
-import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import com.google.android.material.button.MaterialButton
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
+import com.google.android.material.button.MaterialButton
+import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.auth
 
 class LoginActivity : AppCompatActivity() {
 
-    private lateinit var auth: FirebaseAuth
+    // ★変更: by lazy を使って安全に初期化
+    private val auth: FirebaseAuth by lazy { Firebase.auth }
+
     private lateinit var googleSignInClient: GoogleSignInClient
 
     private val googleSignInLauncher =
@@ -25,40 +28,33 @@ class LoginActivity : AppCompatActivity() {
             handleGoogleSignInResult(result.data)
         }
 
+    // ★起動時のチェック（ログイン済みならスキップ）
+    override fun onStart() {
+        super.onStart()
+        if (auth.currentUser != null) {
+            goToHomeScreen()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         installSplashScreen()
         setContentView(R.layout.activity_login)
 
-        auth = FirebaseAuth.getInstance()
-
+        // Googleログイン設定
         setupGoogleLogin()
 
-        val emailLoginButton = findViewById<MaterialButton>(R.id.emailLoginButton)
-        val googleLoginButton = findViewById<MaterialButton>(R.id.googleLoginButton)
-        val registerButton = findViewById<MaterialButton>(R.id.registerButton)
-
-        emailLoginButton.setOnClickListener {
+        // ボタン設定
+        findViewById<MaterialButton>(R.id.emailLoginButton).setOnClickListener {
             startActivity(Intent(this, EmailLoginActivity::class.java))
         }
 
-        registerButton.setOnClickListener {
+        findViewById<MaterialButton>(R.id.registerButton).setOnClickListener {
             startActivity(Intent(this, RegisterActivity::class.java))
         }
 
-        googleLoginButton.setOnClickListener {
+        findViewById<MaterialButton>(R.id.googleLoginButton).setOnClickListener {
             signInWithGoogle()
-        }
-    }
-
-    // ★★★ 追加: 起動時にログイン状態をチェック ★★★
-    override fun onStart() {
-        super.onStart()
-        // すでにログインしているユーザーがいるか確認
-        val currentUser = auth.currentUser
-        if (currentUser != null) {
-            // ログイン済みなら、ログイン画面をスキップして次へ
-            goToHomeScreen()
         }
     }
 
@@ -103,9 +99,10 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun goToHomeScreen() {
-        // ★変更: HomeActivity ではなく DataLoadingActivity (読み込み画面) へ遷移
         val intent = Intent(this, DataLoadingActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
+        // 画面遷移のアニメーションを無効化（スムーズに見せるため）
+        overridePendingTransition(0, 0)
     }
 }
