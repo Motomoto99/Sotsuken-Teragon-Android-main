@@ -62,8 +62,12 @@ class EmailLoginActivity : AppCompatActivity() {
                     if (task.isSuccessful) {
                         // ログイン成功
                         Toast.makeText(this, "ログインしました", Toast.LENGTH_SHORT).show()
-                        val intent = Intent(this, HomeActivity::class.java)
+                        // ★変更: HomeActivity ではなく DataLoadingActivity へ
+                        val intent = Intent(this, DataLoadingActivity::class.java)
+                        // 戻れないように履歴を消す
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         startActivity(intent)
+                        // finish() は上のフラグで自動的に処理されるが念のため書いても良い
                     } else {
                         // ログイン失敗
                         Toast.makeText(this, "ログインに失敗しました", Toast.LENGTH_SHORT).show()

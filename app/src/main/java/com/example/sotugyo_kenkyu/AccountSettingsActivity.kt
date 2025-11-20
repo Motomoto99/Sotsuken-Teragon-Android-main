@@ -244,7 +244,7 @@ class AccountSettingsActivity : AppCompatActivity() {
                             editTextUsername.setTextColor(Color.parseColor("#404040"))
 
                             buttonSaveUsername.visibility = View.GONE
-                            buttonEditUsername.visibility = View.INVISIBLE
+                            buttonEditUsername.visibility = View.VISIBLE
                             textCharLimit.visibility = View.GONE
                         }
                         .addOnFailureListener {

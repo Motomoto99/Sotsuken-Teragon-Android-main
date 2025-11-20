@@ -122,7 +122,8 @@ class LoginActivity : AppCompatActivity() {
      * ホーム画面へ遷移
      */
     private fun goToHomeScreen() {
-        val intent = Intent(this, HomeActivity::class.java) // ←ここを変更してOK
+        // ★変更: HomeActivity ではなく DataLoadingActivity へ
+        val intent = Intent(this, DataLoadingActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
     }
