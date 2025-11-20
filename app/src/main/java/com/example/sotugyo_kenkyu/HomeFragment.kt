@@ -13,8 +13,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
-import com.bumptech.glide.Glide // ★ 追加
-import com.google.firebase.auth.FirebaseAuth // ★ 追加
+import com.bumptech.glide.Glide
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
 class HomeFragment : Fragment() {
@@ -23,14 +23,12 @@ class HomeFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // fragment_home.xmlレイアウトを読み込む
         return inflater.inflate(R.layout.fragment_home, container, false)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // topBarがステータスバーと重ならないようにパディングを調整
         val topBar = view.findViewById<ConstraintLayout>(R.id.topBar)
 
         ViewCompat.setOnApplyWindowInsetsListener(topBar) { v, insets ->
@@ -55,36 +53,47 @@ class HomeFragment : Fragment() {
             val intent = Intent(activity, NotificationActivity::class.java)
             startActivity(intent)
         }
+
+        // ★ 追加: 運営アイコンを読み込んで丸く表示
+        loadNotificationIcon()
     }
 
     override fun onResume() {
         super.onResume()
         updateNotificationBadge()
-        loadUserIcon() // ★ 追加: 画面に戻ってきたときにアイコンを更新
+        loadUserIcon()
+        // onResumeでも呼ぶ必要があればここに追加
+        // loadNotificationIcon()
     }
 
-    // ★★★ 追加: ユーザーアイコンを読み込む処理 ★★★
     private fun loadUserIcon() {
         val view = view ?: return
         val userIcon: ImageButton = view.findViewById(R.id.iconUser)
         val user = FirebaseAuth.getInstance().currentUser
 
         if (user?.photoUrl != null) {
-            // 設定された画像がある場合
             Glide.with(this)
                 .load(user.photoUrl)
-                .circleCrop() // 丸く切り抜く
+                .circleCrop()
                 .into(userIcon)
-
-            // ※必要であればパディングを調整（画像が小さく見える場合など）
-            // userIcon.setPadding(0, 0, 0, 0)
         } else {
-            // 画像がない場合はデフォルトアイコン
             Glide.with(this)
                 .load(R.drawable.outline_account_circle_24)
                 .circleCrop()
                 .into(userIcon)
         }
+    }
+
+    // ★★★ 追加: 運営アイコンを読み込む処理 (デフォルト画像を丸く表示) ★★★
+    private fun loadNotificationIcon() {
+        val view = view ?: return
+        val notificationIcon: ImageButton = view.findViewById(R.id.iconNotification)
+
+        // 運営アイコンは常に特定のデフォルト画像を使用
+        Glide.with(this)
+            .load(R.drawable.ic_notifications) // 適切な通知アイコンのDrawableを指定
+            .circleCrop() // 丸く切り抜く
+            .into(notificationIcon)
     }
 
     private fun updateNotificationBadge() {
