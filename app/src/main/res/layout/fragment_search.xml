@@ -99,10 +99,13 @@
             <include layout="@layout/item_category_button" android:id="@+id/cat_meat"/>
             <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
 
-            <include layout="@layout/item_category_button" android:id="@+id/cat_veg"/>
+            <include layout="@layout/item_category_button" android:id="@+id/cat_fish"/>
             <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
 
-            <include layout="@layout/item_category_button" android:id="@+id/cat_fish"/>
+            <include layout="@layout/item_category_button" android:id="@+id/cat_vegetable"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_other"/>
             <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
 
             <include layout="@layout/item_category_button" android:id="@+id/cat_rice"/>
@@ -120,10 +123,108 @@
             <include layout="@layout/item_category_button" android:id="@+id/cat_salad"/>
             <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
 
+            <include layout="@layout/item_category_button" android:id="@+id/cat_sauce"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_bento"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_sweets"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
             <include layout="@layout/item_category_button" android:id="@+id/cat_bread"/>
             <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
 
-            <include layout="@layout/item_category_button" android:id="@+id/cat_dessert"/>
+            <include layout="@layout/item_category_button" android:id="@+id/cat_nabe"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_event"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_western"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_purpose"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_drink"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_popular"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_classicmeat"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_classicfish"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_egg"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_fruit"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_soy"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_easy"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_save"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_today"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_health"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_utensils"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_chinese"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_korean"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_italian"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_french"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_ethnic"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_okinawa"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_japanese"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_osechi"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_xmas"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_hina"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_spring"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_summer"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_autumn"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
+            <include layout="@layout/item_category_button" android:id="@+id/cat_winter"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
+
 
         </LinearLayout>
     </ScrollView>
