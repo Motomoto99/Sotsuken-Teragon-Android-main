@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F5F5">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingVertical="16dp"
+        android:paddingHorizontal="16dp"
+        android:background="@android:color/white"
+        android:elevation="4dp"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageButton
+            android:id="@+id/buttonBack"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/outline_arrow_back_24"
+            android:scaleType="fitCenter"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:tint="#404040" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="アレルギー情報設定"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#404040"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <ScrollView
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toBottomOf="@+id/header"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/labelAllergy"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="アレルギー品目 (7品目)"
+                android:textColor="#404040"
+                android:textStyle="bold"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <LinearLayout
+                android:id="@+id/containerCheckboxes"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:orientation="vertical"
+                android:background="@drawable/username_display_bg"
+                android:padding="16dp"
+                app:layout_constraintTop_toBottomOf="@+id/labelAllergy">
+
+                <CheckBox android:id="@+id/cbEgg" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="卵" />
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#EEEEEE"/>
+                <CheckBox android:id="@+id/cbMilk" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="乳" />
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#EEEEEE"/>
+                <CheckBox android:id="@+id/cbWheat" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="小麦" />
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#EEEEEE"/>
+                <CheckBox android:id="@+id/cbBuckwheat" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="そば" />
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#EEEEEE"/>
+                <CheckBox android:id="@+id/cbPeanut" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="落花生" />
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#EEEEEE"/>
+                <CheckBox android:id="@+id/cbShrimp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="えび" />
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#EEEEEE"/>
+                <CheckBox android:id="@+id/cbCrab" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="かに" />
+
+            </LinearLayout>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </ScrollView>
+</androidx.constraintlayout.widget.ConstraintLayout>
