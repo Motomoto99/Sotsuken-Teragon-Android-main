@@ -3,9 +3,10 @@ package com.example.sotugyo_kenkyu
 import com.google.firebase.FirebaseApp
 import com.google.firebase.ai.Chat
 import com.google.firebase.ai.FirebaseAI
-import com.google.firebase.auth.FirebaseAuth // ★追加
-import com.google.firebase.firestore.FirebaseFirestore // ★追加
-import kotlinx.coroutines.tasks.await // ★追加
+// import com.google.firebase.ai.content // ←この行は削除してください
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 
 /**
  * ログイン中の AI チャットセッションをアプリ全体で 1 つ管理するためのシングルトン。
@@ -36,10 +37,10 @@ object AiChatSessionManager {
     // ---------------- プロンプト関連 ----------------
 
     private suspend fun buildInitialPrompt(): String {
-        // Firestore などから長文プロンプトを取得（あなたが作った PromptRepository）
+        // Firestore などから長文プロンプトを取得
         val systemPrompt = PromptRepository.getSystemPrompt()
 
-        // ★追加: ユーザーのアレルギー情報を取得してプロンプトに組み込む
+        // ユーザーのアレルギー情報を取得してプロンプトに組み込む
         val allergyInfo = getUserAllergiesPrompt()
 
         return """
@@ -51,7 +52,7 @@ $allergyInfo
 """.trimIndent()
     }
 
-    // ★追加: Firestoreからアレルギー情報を取得し、AIへの指示文を作成する
+    // Firestoreからアレルギー情報を取得し、AIへの指示文を作成する
     private suspend fun getUserAllergiesPrompt(): String {
         val user = FirebaseAuth.getInstance().currentUser ?: return ""
 
@@ -83,6 +84,34 @@ $allergyInfo
         }
     }
 
+    // メッセージ内容からタイトルを自動生成する関数
+    suspend fun generateTitleFromMessage(message: String): String {
+        return try {
+            // タイトル生成用のプロンプト
+            val prompt = """
+                以下のユーザーのメッセージを、履歴として一覧表示した際に分かりやすい
+                20文字以内の短いタイトルに要約してください。
+                
+                ・「〜について教えて」などの語尾はカットする
+                ・鍵括弧「」などの記号は不要
+                ・料理名や食材名が含まれる場合はそれを優先する
+                
+                メッセージ:
+                $message
+            """.trimIndent()
+
+            // 履歴を持たない単発のリクエストとして送信
+            val response = generativeModel.generateContent(prompt)
+
+            // 結果を返す（失敗したら元のメッセージを適当に短くして返す）
+            response.text?.trim() ?: message.take(20)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // エラー時は元のメッセージをそのまま使う
+            message.take(20)
+        }
+    }
+
     private suspend fun createChatWithPrompt(): Chat {
         val initialPrompt = buildInitialPrompt()
 
@@ -95,7 +124,6 @@ $allergyInfo
     }
 
     // ---------------- セッション操作 ----------------
-    // (以下変更なし)
 
     /**
      * まだ Chat がなければ新規作成して返す。

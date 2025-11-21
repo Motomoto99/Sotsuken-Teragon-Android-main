@@ -10,9 +10,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import androidx.lifecycle.lifecycleScope // ★追加
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.launch // ★追加
 
 class AllergySettingsActivity : AppCompatActivity() {
 
@@ -88,12 +90,20 @@ class AllergySettingsActivity : AppCompatActivity() {
         db.collection("users").document(user.uid)
             .set(userData, SetOptions.merge())
             .addOnSuccessListener {
-                Toast.makeText(this, "保存しました", Toast.LENGTH_SHORT).show()
-                finish() // 保存成功時に画面を閉じる
+                // ★変更: 保存成功時にAIセッションを作り直す（プロンプト再読み込み）
+                lifecycleScope.launch {
+                    try {
+                        // ここで新しいセッションを開始すると、最新のアレルギー情報を読み込んでくれます
+                        AiChatSessionManager.startNewSession()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    } finally {
+                        Toast.makeText(this@AllergySettingsActivity, "保存しました", Toast.LENGTH_SHORT).show()
+                        finish() // 画面を閉じる
+                    }
+                }
             }
             .addOnFailureListener { e ->
-                // 失敗した場合も、ユーザーを閉じ込めるわけにはいかないので
-                // エラーを表示して閉じるか、リトライを促す
                 Toast.makeText(this, "保存に失敗しました: ${e.message}", Toast.LENGTH_SHORT).show()
                 finish()
             }

@@ -73,7 +73,7 @@ class AiFragment : Fragment() {
         buttonSend.isEnabled = false
         updateNewChatButtonState()
 
-        // ★「今どのチャットを開いているか」は SessionManager に一元管理させる
+        // 「今どのチャットを開いているか」は SessionManager に一元管理させる
         val currentId = AiChatSessionManager.currentChatId
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -89,7 +89,6 @@ class AiFragment : Fragment() {
                 }
             } catch (ce: CancellationException) {
                 // 画面から離れたときなどの正常なキャンセル → 何もしない
-                // throw ce してもいいけど、ここでは完全に無視してOK
             } catch (e: Exception) {
                 // 本当に失敗したときだけログに出す（ユーザーには通知しない）
                 e.printStackTrace()
@@ -168,10 +167,15 @@ class AiFragment : Fragment() {
 
                 ChatRepository.addMessage(chatId, role = "user", text = userMessageText)
 
+                // ★変更: 初回メッセージの場合、AIにタイトル生成を依頼する
                 if (!AiChatSessionManager.firstUserMessageSent) {
                     AiChatSessionManager.markFirstUserMessageSent()
-                    val title = makeAutoTitleFromFirstMessage(userMessageText)
-                    ChatRepository.updateChatTitle(chatId, title)
+
+                    // 並行してタイトル生成を実行（チャットの応答を待たずに裏で動かす）
+                    launch {
+                        val newTitle = AiChatSessionManager.generateTitleFromMessage(userMessageText)
+                        ChatRepository.updateChatTitle(chatId, newTitle)
+                    }
                 }
 
                 val response = sessionChat.sendMessage(userMessageText)
@@ -217,10 +221,4 @@ class AiFragment : Fragment() {
     }
 }
 
-// タイトル自動生成（以前使っていたやつ）
-fun makeAutoTitleFromFirstMessage(text: String): String {
-    val trimmed = text.trim()
-    if (trimmed.isEmpty()) return "新しいチャット"
-    val maxLen = 20
-    return if (trimmed.length <= maxLen) trimmed else trimmed.take(maxLen) + "…"
-}
+// ★削除: 以前の makeAutoTitleFromFirstMessage 関数は不要になったため削除しました
