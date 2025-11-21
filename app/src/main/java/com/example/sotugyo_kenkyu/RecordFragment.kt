@@ -1,5 +1,6 @@
 package com.example.sotugyo_kenkyu
 
+import android.content.Intent // ★追加
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -30,10 +31,9 @@ class RecordFragment : Fragment() {
 
         val header = view.findViewById<View>(R.id.header)
 
-        // ★★★ ヘッダーのパディング調整 (他画面と統一) ★★★
+        // ヘッダーのパディング調整
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            // XMLのpaddingVertical="16dp" + ステータスバーの高さ
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
             v.updatePadding(top = systemBars.top + originalPaddingTop)
             insets
@@ -56,11 +56,16 @@ class RecordFragment : Fragment() {
 
         recyclerView.adapter = RecordAdapter(dummyData)
 
+        // ★★★ ここを修正しました ★★★
+        // ＋ボタンを押したら記録入力画面へ遷移
         fabAdd.setOnClickListener {
-            Toast.makeText(requireContext(), "記録を追加", Toast.LENGTH_SHORT).show()
+            val intent = Intent(requireContext(), RecordInputActivity::class.java)
+            startActivity(intent)
         }
     }
 }
+
+// --- 以下、データクラスとアダプター（変更なし） ---
 
 data class RecordItem(
     val time: String,
