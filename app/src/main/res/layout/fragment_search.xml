@@ -4,70 +4,62 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5"
-    android:focusable="true"
-    android:focusableInTouchMode="true">
+    android:background="#F5F5F5"> <androidx.constraintlayout.widget.ConstraintLayout
+    android:id="@+id/searchTopBar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingTop="16dp"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="16dp"
+    android:background="@android:color/white"
+    android:elevation="4dp"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintTop_toTopOf="parent">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/searchTopBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="16dp"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="16dp"
-        android:background="@android:color/white"
-        android:elevation="4dp"
+    <TextView
+        android:id="@+id/searchBar"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:background="@drawable/rounded_search_bar_bg"
+        android:drawableStart="@android:drawable/ic_menu_search"
+        android:drawablePadding="8dp"
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:text="料理名・食材でレシピ検索"
+        android:textColor="#888888"
         app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/btnCameraSearch"/>
+
+    <LinearLayout
+        android:id="@+id/btnCameraSearch"
+        android:layout_width="96dp"
+        android:layout_height="48dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:layout_marginStart="8dp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
-
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/searchBar">
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_camera"
+            app:tint="#000000" />
         <TextView
-            android:id="@+id/searchBar"
-            android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:background="@drawable/rounded_search_bar_bg"
-            android:drawableStart="@android:drawable/ic_menu_search"
-            android:drawablePadding="8dp"
-            android:gravity="center_vertical"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:text="料理名・食材でレシピ検索"
-            android:textColor="#888888"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@+id/btnCameraSearch"/>
-
-        <LinearLayout
-            android:id="@+id/btnCameraSearch"
-            android:layout_width="96dp"
-            android:layout_height="48dp"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:layout_marginStart="8dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/searchBar">
-
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@android:drawable/ic_menu_camera"
-                app:tint="#000000" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="写真検索"
-                android:textSize="10sp"
-                android:textStyle="bold"
-                android:textColor="#000000"
-                android:layout_marginTop="0dp"/>
-        </LinearLayout>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="写真検索"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="#000000" />
+    </LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
 
     <TextView
         android:id="@+id/titleCategory"
@@ -82,151 +74,12 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/searchTopBar" />
 
-    <ScrollView
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerCategory"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="12dp"
         app:layout_constraintTop_toBottomOf="@+id/titleCategory"
-        app:layout_constraintBottom_toBottomOf="parent">
-
-        <LinearLayout
-            android:id="@+id/categoryContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingBottom="24dp">
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_meat"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_fish"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_vegetable"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_other"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_rice"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_pasta"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_noodle"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_soup"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_salad"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_sauce"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_bento"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_sweets"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_bread"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_nabe"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_event"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_western"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_purpose"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_drink"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_popular"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_classicmeat"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_classicfish"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_egg"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_fruit"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_soy"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_easy"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_save"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_today"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_health"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_utensils"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_chinese"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_korean"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_italian"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_french"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_ethnic"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_okinawa"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_japanese"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_osechi"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_xmas"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_hina"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_spring"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_summer"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_autumn"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-            <include layout="@layout/item_category_button" android:id="@+id/cat_winter"/>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F0F0" android:layout_marginStart="72dp"/>
-
-
-        </LinearLayout>
-    </ScrollView>
+        app:layout_constraintBottom_toBottomOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

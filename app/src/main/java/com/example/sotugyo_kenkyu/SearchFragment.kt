@@ -4,13 +4,13 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
-import android.widget.TextView
-import androidx.constraintlayout.widget.ConstraintLayout // 追加
-import androidx.core.view.ViewCompat // 追加
-import androidx.core.view.WindowInsetsCompat // 追加
-import androidx.core.view.updatePadding // 追加
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.LinearLayoutManager // 追加
+import androidx.recyclerview.widget.RecyclerView // 追加
 
 class SearchFragment : Fragment() {
 
@@ -24,88 +24,89 @@ class SearchFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // ★ここから修正：ホーム画面と同じ余白処理を追加
+        // 1. 余白処理（そのまま）
         val searchTopBar = view.findViewById<ConstraintLayout>(R.id.searchTopBar)
-
         ViewCompat.setOnApplyWindowInsetsListener(searchTopBar) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-
-            // XMLで設定した元のpaddingTop (16dp) を保持しつつ、ステータスバーの高さを足す
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
-
             v.updatePadding(top = systemBars.top + originalPaddingTop)
             insets
         }
-        // ★修正ここまで
 
-        // --- 以下、各ボタンの設定（前回と同じ） ---
-        setupCategory(view, R.id.cat_meat, "肉", "10", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_fish, "魚", "11", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_vegetable, "野菜", "12", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_other, "その他の食材", "13", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_rice, "ご飯もの", "14", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_pasta, "パスタ", "15", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_noodle, "麺・粉物料理", "16", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_soup, "汁物・スープ", "17", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_salad, "サラダ", "18", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_sauce, "ソース・調味料・ドレッシング", "19", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_bento, "お弁当", "20", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_sweets, "お菓子", "21", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_bread, "パン", "22", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_nabe, "鍋料理", "23", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_event, "行事・イベント", "24", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_western, "西洋料理", "25", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_purpose, "その他の目的・シーン", "26", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_drink, "飲みもの", "27", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_popular, "人気メニュー", "30", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_classicmeat, "定番の肉料理", "31", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_classicfish, "定番の魚料理", "32", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_egg, "卵料理", "33", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_fruit, "果物", "34", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_soy, "大豆・豆腐", "35", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_easy, "簡単料理・時短", "36", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_save, "節約料理", "37", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_today, "今日の献立", "38", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_health, "健康料理", "39", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_utensils, "調理器具", "40", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_chinese, "中華料理", "41", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_korean, "韓国料理", "42", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_italian, "イタリア料理", "43", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_french, "フランス料理", "44", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_ethnic, "エスニック料理・中南米", "46", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_okinawa, "沖縄料理", "47", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_japanese, "日本各地の郷土料理", "48", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_osechi, "おせち料理", "49", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_xmas, "クリスマス", "50", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_hina, "ひな祭り", "51", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_spring, "春（3月～5月）", "52", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_summer, "夏（6月～8月）", "53", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_autumn, "秋（9月～11月）", "54", R.drawable.outline_cottage_24)
-        setupCategory(view, R.id.cat_winter, "冬（12月～2月）", "55", R.drawable.outline_cottage_24)
+        // 2. RecyclerViewのセットアップ
+        val recyclerView = view.findViewById<RecyclerView>(R.id.recyclerCategory)
+        recyclerView.layoutManager = LinearLayoutManager(context)
 
-    }
+        // データを準備（リスト形式でスッキリ！）
+        val categoryList = getCategoryData()
 
-    private fun setupCategory(view: View, includeId: Int, name: String, id: String, iconRes: Int) {
-        val layout = view.findViewById<View>(includeId)
-        val textName = layout.findViewById<TextView>(R.id.textCategoryName)
-        val icon = layout.findViewById<ImageView>(R.id.iconCategory)
-
-        textName.text = name
-        icon.setImageResource(iconRes)
-
-        layout.setOnClickListener {
-            // ★ここを変更！
-            // RecipeListFragment ではなく SubCategoryFragment へ遷移
+        // Adapterをセット
+        // 第2引数のラムダ式 { category -> ... } が、クリックされた時の処理になるよ
+        recyclerView.adapter = CategoryAdapter(categoryList) { category ->
+            // 画面遷移処理
             val fragment = SubCategoryFragment()
             val args = Bundle()
-            args.putString("PARENT_ID", id)
-            args.putString("PARENT_NAME", name)
+            args.putString("PARENT_ID", category.apiId)
+            args.putString("PARENT_NAME", category.name)
             fragment.arguments = args
 
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, fragment)
-                .addToBackStack(null)
+                .addToBackStack(null) // 戻るボタンで戻れるように
                 .commit()
         }
+    }
+
+    // データを生成するメソッド（長くなるので分離）
+    private fun getCategoryData(): List<CategoryData> {
+        // iconは全部 outline_cottage_24 になっていたので統一してますが、
+        // 必要なら個別に変更してね！
+        val defaultIcon = R.drawable.outline_cottage_24
+
+        return listOf(
+            CategoryData("10", "肉", defaultIcon),
+            CategoryData("11", "魚", defaultIcon),
+            CategoryData("12", "野菜", defaultIcon),
+            CategoryData("13", "その他の食材", defaultIcon),
+            CategoryData("14", "ご飯もの", defaultIcon),
+            CategoryData("15", "パスタ", defaultIcon),
+            CategoryData("16", "麺・粉物料理", defaultIcon),
+            CategoryData("17", "汁物・スープ", defaultIcon),
+            CategoryData("18", "サラダ", defaultIcon),
+            CategoryData("19", "ソース・調味料・ドレッシング", defaultIcon),
+            CategoryData("20", "お弁当", defaultIcon),
+            CategoryData("21", "お菓子", defaultIcon),
+            CategoryData("22", "パン", defaultIcon),
+            CategoryData("23", "鍋料理", defaultIcon),
+            CategoryData("24", "行事・イベント", defaultIcon),
+            CategoryData("25", "西洋料理", defaultIcon),
+            CategoryData("26", "その他の目的・シーン", defaultIcon),
+            CategoryData("27", "飲みもの", defaultIcon),
+            CategoryData("30", "人気メニュー", defaultIcon),
+            CategoryData("31", "定番の肉料理", defaultIcon),
+            CategoryData("32", "定番の魚料理", defaultIcon),
+            CategoryData("33", "卵料理", defaultIcon),
+            CategoryData("34", "果物", defaultIcon),
+            CategoryData("35", "大豆・豆腐", defaultIcon),
+            CategoryData("36", "簡単料理・時短", defaultIcon),
+            CategoryData("37", "節約料理", defaultIcon),
+            CategoryData("38", "今日の献立", defaultIcon),
+            CategoryData("39", "健康料理", defaultIcon),
+            CategoryData("40", "調理器具", defaultIcon),
+            CategoryData("41", "中華料理", defaultIcon),
+            CategoryData("42", "韓国料理", defaultIcon),
+            CategoryData("43", "イタリア料理", defaultIcon),
+            CategoryData("44", "フランス料理", defaultIcon),
+            CategoryData("46", "エスニック料理・中南米", defaultIcon),
+            CategoryData("47", "沖縄料理", defaultIcon),
+            CategoryData("48", "日本各地の郷土料理", defaultIcon),
+            CategoryData("49", "おせち料理", defaultIcon),
+            CategoryData("50", "クリスマス", defaultIcon),
+            CategoryData("51", "ひな祭り", defaultIcon),
+            CategoryData("52", "春（3月～5月）", defaultIcon),
+            CategoryData("53", "夏（6月～8月）", defaultIcon),
+            CategoryData("54", "秋（9月～11月）", defaultIcon),
+            CategoryData("55", "冬（12月～2月）", defaultIcon)
+        )
     }
 }
