@@ -13,6 +13,9 @@
         android:theme="@style/Theme.Sotugyo_kenkyu">
 
         <activity
+            android:name=".RecordDetailActivity"
+            android:exported="false" />
+        <activity
             android:name=".RecordInputActivity"
             android:exported="false" />
         <activity

@@ -8,7 +8,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.EditText
 import android.widget.ImageView
-import android.widget.RatingBar // ★ 追加
+import android.widget.RatingBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
@@ -81,7 +81,21 @@ class RecordInputActivity : AppCompatActivity() {
 
         updateDateText(textDate)
 
-        buttonCancel.setOnClickListener { finish() }
+        // ★★★ 修正: キャンセルボタンの処理 ★★★
+        buttonCancel.setOnClickListener {
+            // 入力内容があるかチェック
+            val hasInput = inputMenuName.text.isNotEmpty() ||
+                    inputMemo.text.isNotEmpty() ||
+                    selectedImageUri != null
+
+            if (hasInput) {
+                // 入力がある場合は確認ダイアログを表示
+                showDiscardConfirmationDialog()
+            } else {
+                // 何も入力されていない場合はそのまま閉じる
+                finish()
+            }
+        }
 
         cardPhoto.setOnClickListener {
             pickImageLauncher.launch("image/*")
@@ -130,6 +144,18 @@ class RecordInputActivity : AppCompatActivity() {
         }
     }
 
+    // ★★★ 追加: 破棄確認ダイアログ ★★★
+    private fun showDiscardConfirmationDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("確認")
+            .setMessage("入力したデータはすべて破棄されます。\nよろしいですか？")
+            .setPositiveButton("破棄する") { _, _ ->
+                finish() // 画面を閉じる
+            }
+            .setNegativeButton("キャンセル", null) // ダイアログを閉じるだけ
+            .show()
+    }
+
     private fun updateDateText(view: TextView) {
         val year = calendar.get(Calendar.YEAR)
         val month = calendar.get(Calendar.MONTH) + 1
@@ -164,16 +190,13 @@ class RecordInputActivity : AppCompatActivity() {
             memo = memo,
             imageUrl = imageUrl,
             isPublic = isPublic,
-            rating = 0f // 初期値は0
+            rating = 0f
         )
 
         db.collection("users").document(uid).collection("my_records")
             .add(newRecord)
             .addOnSuccessListener { documentReference ->
-                // IDを更新
                 documentReference.update("id", documentReference.id)
-
-                // ★★★ 変更: 保存成功後に評価ダイアログを表示 (ドキュメントIDを渡す) ★★★
                 showSuccessDialog(uid, documentReference.id)
             }
             .addOnFailureListener { e ->
@@ -182,7 +205,6 @@ class RecordInputActivity : AppCompatActivity() {
             }
     }
 
-    // ★★★ 評価ダイアログ表示と更新処理 ★★★
     private fun showSuccessDialog(uid: String, recordId: String) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_record_success, null)
         val ratingBar = dialogView.findViewById<RatingBar>(R.id.ratingBar)
@@ -194,21 +216,16 @@ class RecordInputActivity : AppCompatActivity() {
 
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
 
-        // 「完了」ボタン
         dialogView.findViewById<View>(R.id.buttonCloseDialog).setOnClickListener {
-            // 評価値を取得
             val rating = ratingBar.rating
-
-            // Firestoreのデータを更新して評価を保存
             if (rating > 0) {
                 FirebaseFirestore.getInstance()
                     .collection("users").document(uid)
                     .collection("my_records").document(recordId)
                     .update("rating", rating)
             }
-
             dialog.dismiss()
-            finish() // 画面を閉じる
+            finish()
         }
 
         dialog.show()
