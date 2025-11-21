@@ -68,6 +68,15 @@ class HomeFragment : Fragment() {
             (activity as? HomeActivity)?.findViewById<BottomNavigationView>(R.id.bottomNavigation)?.selectedItemId = R.id.nav_record
         }
 
+        // ★追加: みんなの投稿「もっと見る」
+        val textMorePublic: TextView = view.findViewById(R.id.textMorePublic)
+        textMorePublic.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, PublicRecordsFragment())
+                .addToBackStack(null)
+                .commit()
+        }
+
         loadUserIcon()
         loadNotificationIcon()
     }
