@@ -2,6 +2,7 @@ package com.example.sotugyo_kenkyu
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -62,11 +63,18 @@ class HomeFragment : Fragment() {
             startActivity(intent)
         }
 
-        // ★ 追加: 「もっと見る」ボタンで記録タブへ移動
         val textMore: TextView = view.findViewById(R.id.textMore)
         textMore.setOnClickListener {
-            // HomeActivityのBottomNavigationを操作して切り替える
             (activity as? HomeActivity)?.findViewById<BottomNavigationView>(R.id.bottomNavigation)?.selectedItemId = R.id.nav_record
+        }
+
+        // ★追加: みんなの投稿「もっと見る」
+        val textMorePublic: TextView = view.findViewById(R.id.textMorePublic)
+        textMorePublic.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, PublicRecordsFragment())
+                .addToBackStack(null)
+                .commit()
         }
 
         loadUserIcon()
@@ -86,11 +94,13 @@ class HomeFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         loadUserIcon()
-        // ★ 追加: 画面に戻ってきたときに最新の記録を読み込む
+        // 自分の記録を読み込む
         loadRecentRecords()
+        // ★追加: みんなの記録を読み込む
+        loadEveryoneRecords()
     }
 
-    // ★ 追加: Firestoreから最新2件の記録を取得する
+    // 自分の最新記録
     private fun loadRecentRecords() {
         val user = FirebaseAuth.getInstance().currentUser ?: return
         val db = FirebaseFirestore.getInstance()
@@ -104,11 +114,10 @@ class HomeFragment : Fragment() {
                 updateRecentRecordsUI(records)
             }
             .addOnFailureListener {
-                // 読み込み失敗時はUI更新しない（非表示のまま）
+                // エラーハンドリング
             }
     }
 
-    // ★ 追加: 取得した記録をUIに反映する
     private fun updateRecentRecordsUI(records: List<Record>) {
         val view = view ?: return
         val card1 = view.findViewById<CardView>(R.id.cardRecord1)
@@ -129,7 +138,6 @@ class HomeFragment : Fragment() {
             } else {
                 Glide.with(this).load(R.drawable.background_with_logo).centerCrop().into(img1)
             }
-
             card1.setOnClickListener { openRecordDetail(r1) }
         } else {
             card1.visibility = View.INVISIBLE
@@ -145,14 +153,75 @@ class HomeFragment : Fragment() {
             } else {
                 Glide.with(this).load(R.drawable.background_with_logo).centerCrop().into(img2)
             }
-
             card2.setOnClickListener { openRecordDetail(r2) }
         } else {
             card2.visibility = View.INVISIBLE
         }
     }
 
-    // ★ 追加: 詳細画面を開くヘルパー関数
+    // ★追加: みんなの最新投稿（Collection Group Query）
+    private fun loadEveryoneRecords() {
+        val db = FirebaseFirestore.getInstance()
+
+        // "my_records" という名前の全コレクションから、isPublic=true のものを日付順で取得
+        // ※このクエリを実行するにはFirestoreでインデックスを作成する必要があります。
+        // 実行時にLogcatにエラーとともにインデックス作成用URLが表示されるので、それをクリックしてください。
+        db.collectionGroup("my_records")
+            .whereEqualTo("isPublic", true)
+            .orderBy("date", Query.Direction.DESCENDING)
+            .limit(2)
+            .get()
+            .addOnSuccessListener { documents ->
+                val records = documents.toObjects(Record::class.java)
+                updateEveryoneRecordsUI(records)
+            }
+            .addOnFailureListener { e ->
+                Log.e("HomeFragment", "Error loading everyone records", e)
+            }
+    }
+
+    // ★追加: みんなの投稿UI更新
+    private fun updateEveryoneRecordsUI(records: List<Record>) {
+        val view = view ?: return
+        val card1 = view.findViewById<CardView>(R.id.cardPublic1)
+        val img1 = view.findViewById<ImageView>(R.id.imgPublic1)
+        val text1 = view.findViewById<TextView>(R.id.textPublicTitle1)
+
+        val card2 = view.findViewById<CardView>(R.id.cardPublic2)
+        val img2 = view.findViewById<ImageView>(R.id.imgPublic2)
+        val text2 = view.findViewById<TextView>(R.id.textPublicTitle2)
+
+        // 1件目
+        if (records.isNotEmpty()) {
+            val r1 = records[0]
+            card1.visibility = View.VISIBLE
+            text1.text = r1.menuName
+            if (r1.imageUrl.isNotEmpty()) {
+                Glide.with(this).load(r1.imageUrl).centerCrop().into(img1)
+            } else {
+                Glide.with(this).load(R.drawable.background_with_logo).centerCrop().into(img1)
+            }
+            card1.setOnClickListener { openRecordDetail(r1) }
+        } else {
+            card1.visibility = View.INVISIBLE
+        }
+
+        // 2件目
+        if (records.size >= 2) {
+            val r2 = records[1]
+            card2.visibility = View.VISIBLE
+            text2.text = r2.menuName
+            if (r2.imageUrl.isNotEmpty()) {
+                Glide.with(this).load(r2.imageUrl).centerCrop().into(img2)
+            } else {
+                Glide.with(this).load(R.drawable.background_with_logo).centerCrop().into(img2)
+            }
+            card2.setOnClickListener { openRecordDetail(r2) }
+        } else {
+            card2.visibility = View.INVISIBLE
+        }
+    }
+
     private fun openRecordDetail(item: Record) {
         val context = requireContext()
         val intent = Intent(context, RecordDetailActivity::class.java)

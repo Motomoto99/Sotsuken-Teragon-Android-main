@@ -6,13 +6,14 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 
 class RecipeAdapter(
     private val recipeList: List<Recipe>,
-    private val onFavoriteClick: (Recipe) -> Unit,
-    private val onItemClick: (Recipe) -> Unit // ★追加：項目クリック用
+    private val onFavoriteClick: (Recipe) -> Unit, // お気に入りボタンの処理
+    private val onItemClick: (Recipe) -> Unit      // 全体クリックの処理
 ) : RecyclerView.Adapter<RecipeAdapter.RecipeViewHolder>() {
 
     class RecipeViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -20,7 +21,7 @@ class RecipeAdapter(
         val textTitle: TextView = view.findViewById(R.id.textTitle)
         val textCategory: TextView = view.findViewById(R.id.textCategory)
         val buttonFavorite: ImageButton = view.findViewById(R.id.buttonFavorite)
-        val container: View = view // ★追加：クリック範囲用
+        val container: View = view
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecipeViewHolder {
@@ -43,16 +44,43 @@ class RecipeAdapter(
             Glide.with(holder.itemView.context)
                 .load(recipe.foodImageUrl)
                 .placeholder(R.drawable.ic_launcher_background)
+                .centerCrop() // 画像を綺麗に切り抜く
                 .into(holder.imageFood)
         }
 
+        // ★ 星アイコンの表示切り替え
+        updateFavoriteIcon(holder.buttonFavorite, recipe.isFavorite)
+
+        // ★ 星ボタンのクリック処理
         holder.buttonFavorite.setOnClickListener {
+            // 1. 見た目を即座に反転させる（ユーザーへのレスポンス重視）
+            recipe.isFavorite = !recipe.isFavorite
+            updateFavoriteIcon(holder.buttonFavorite, recipe.isFavorite)
+
+            // 2. 親側の処理（Firestore更新など）を呼ぶ
             onFavoriteClick(recipe)
         }
 
-        // ★追加：項目全体のクリックリスナー
         holder.container.setOnClickListener {
             onItemClick(recipe)
+        }
+    }
+
+    // 星の色を変える便利関数
+    private fun updateFavoriteIcon(button: ImageButton, isFavorite: Boolean) {
+        val context = button.context
+        if (isFavorite) {
+            // お気に入り済み：
+            // 1. アイコンを「塗りつぶし星」にする
+            button.setImageResource(R.drawable.ic_star_filled)
+            // 2. 色を「ゴールド（黄色）」にする
+            button.setColorFilter(ContextCompat.getColor(context, R.color.gold))
+        } else {
+            // 未登録：
+            // 1. アイコンを「枠線だけの星」に戻す
+            button.setImageResource(R.drawable.ic_star_outline)
+            // 2. 色を「グレー」にする
+            button.setColorFilter(ContextCompat.getColor(context, android.R.color.darker_gray))
         }
     }
 

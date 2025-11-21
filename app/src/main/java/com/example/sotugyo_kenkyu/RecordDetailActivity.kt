@@ -27,7 +27,6 @@ class RecordDetailActivity : AppCompatActivity() {
     private var recordId: String? = null
     private var userId: String? = null
 
-    // UIコンポーネントをメンバ変数として保持（再読み込み時に使用）
     private lateinit var textHeaderTitle: TextView
     private lateinit var imageFood: ImageView
     private lateinit var textMenuName: TextView
@@ -37,7 +36,10 @@ class RecordDetailActivity : AppCompatActivity() {
     private lateinit var textTime: TextView
     private lateinit var textMemo: TextView
 
-    // 編集用の一時データ保持
+    // ★追加: 投稿者情報のView
+    private lateinit var imageAuthorIcon: ImageView
+    private lateinit var textAuthorName: TextView
+
     private var currentRecord: Record? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,11 +47,9 @@ class RecordDetailActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_record_detail)
 
-        // IntentからIDを受け取る
         recordId = intent.getStringExtra("RECORD_ID")
         userId = intent.getStringExtra("USER_ID")
 
-        // UI取得
         val header = findViewById<View>(R.id.header)
         val buttonBack = findViewById<ImageButton>(R.id.buttonBack)
         textHeaderTitle = findViewById(R.id.textHeaderTitle)
@@ -63,10 +63,13 @@ class RecordDetailActivity : AppCompatActivity() {
         textTime = findViewById(R.id.textTime)
         textMemo = findViewById(R.id.textMemo)
 
+        // ★追加: View取得
+        imageAuthorIcon = findViewById(R.id.imageAuthorIcon)
+        textAuthorName = findViewById(R.id.textAuthorName)
+
         val buttonEdit = findViewById<ImageButton>(R.id.buttonEdit)
         val buttonDelete = findViewById<ImageButton>(R.id.buttonDelete)
 
-        // WindowInsets設定
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
@@ -80,22 +83,28 @@ class RecordDetailActivity : AppCompatActivity() {
         }
 
         textHeaderTitle.text = "記録の詳細"
-
-        // 詳細画面ではスイッチ操作不可にしておく（見る専用）
-        // ※もし詳細画面で直接切り替えたい場合は true にし、リスナーで即時保存処理が必要
         switchPublic.isClickable = false
 
-        // 最初にIntentから渡されたデータを表示
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser != null && userId != null && currentUser.uid != userId) {
+            // 自分以外の投稿の場合
+            buttonEdit.visibility = View.GONE
+            buttonDelete.visibility = View.GONE
+            // ★追加: 投稿者情報をロード
+            loadAuthorInfo(userId!!)
+        } else {
+            // 自分の投稿の場合
+            // 必要なら自分の情報を表示しても良いが、ここでは「あなた」とするか、ロードする
+            loadAuthorInfo(currentUser?.uid ?: "")
+        }
+
         displayInitialData()
 
-        // 戻るボタン
         buttonBack.setOnClickListener { finish() }
 
-        // 編集ボタン
         buttonEdit.setOnClickListener {
             if (currentRecord != null) {
                 val intent = Intent(this, RecordInputActivity::class.java)
-                // 編集モードに必要なデータを渡す
                 intent.putExtra("RECORD_ID", currentRecord!!.id)
                 intent.putExtra("MENU_NAME", currentRecord!!.menuName)
                 intent.putExtra("MEMO", currentRecord!!.memo)
@@ -109,16 +118,49 @@ class RecordDetailActivity : AppCompatActivity() {
             }
         }
 
-        // 削除ボタン
         buttonDelete.setOnClickListener {
             showDeleteConfirmation()
         }
     }
 
-    // 編集画面から戻ってきたときに最新データを再取得して反映する
+    // ★追加: 投稿者の情報をFirestoreから取得
+    private fun loadAuthorInfo(authorId: String) {
+        if (authorId.isEmpty()) return
+
+        FirebaseFirestore.getInstance().collection("users").document(authorId)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document.exists()) {
+                    val name = document.getString("username") ?: "名称未設定"
+                    val photoUrl = document.getString("photoUrl")
+
+                    textAuthorName.text = name
+                    if (!photoUrl.isNullOrEmpty()) {
+                        Glide.with(this)
+                            .load(photoUrl)
+                            .circleCrop()
+                            .into(imageAuthorIcon)
+                    } else {
+                        Glide.with(this)
+                            .load(R.drawable.outline_account_circle_24)
+                            .circleCrop()
+                            .into(imageAuthorIcon)
+                    }
+                } else {
+                    textAuthorName.text = "不明なユーザー"
+                }
+            }
+            .addOnFailureListener {
+                textAuthorName.text = "読み込みエラー"
+            }
+    }
+
     override fun onResume() {
         super.onResume()
-        fetchLatestData()
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser != null && userId != null && currentUser.uid == userId) {
+            fetchLatestData()
+        }
     }
 
     private fun displayInitialData() {
@@ -129,7 +171,6 @@ class RecordDetailActivity : AppCompatActivity() {
         val rating = intent.getFloatExtra("RATING", 0f)
         val timestamp = intent.getLongExtra("DATE_TIMESTAMP", 0)
 
-        // currentRecordを仮構築
         currentRecord = Record(
             id = recordId ?: "",
             userId = userId ?: "",
@@ -139,7 +180,6 @@ class RecordDetailActivity : AppCompatActivity() {
             isPublic = isPublic,
             rating = rating
         )
-        // UI更新
         updateUI(menuName, memo, isPublic, rating, timestamp, imageUrl)
     }
 
@@ -168,9 +208,6 @@ class RecordDetailActivity : AppCompatActivity() {
                     }
                 }
             }
-            .addOnFailureListener {
-                // 読み込み失敗時は何もしない
-            }
     }
 
     private fun updateUI(
@@ -183,11 +220,8 @@ class RecordDetailActivity : AppCompatActivity() {
     ) {
         textMenuName.text = menuName
         textMemo.text = memo
-
-        // 公開状態に合わせてスイッチの状態とテキストを変更
         switchPublic.isChecked = isPublic
         switchPublic.text = if (isPublic) "公開中" else "非公開"
-
         ratingBar.rating = rating
 
         if (timestamp > 0) {
