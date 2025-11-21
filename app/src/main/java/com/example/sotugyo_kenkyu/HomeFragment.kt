@@ -32,7 +32,6 @@ class HomeFragment : Fragment() {
     private var currentSnapshots: QuerySnapshot? = null
     private var lastSeenDate: Timestamp? = null
 
-    // ★★★ 追加: データをメモリに保持しておくための変数 ★★★
     private var myRecordList: List<Record> = emptyList()
     private var publicRecordList: List<Record> = emptyList()
 
@@ -80,7 +79,6 @@ class HomeFragment : Fragment() {
                 .commit()
         }
 
-        // ★★★ 追加: 画面が表示された瞬間、すでにデータを持っていれば即表示する ★★★
         if (myRecordList.isNotEmpty()) {
             updateRecentRecordsUI(myRecordList)
         }
@@ -105,13 +103,10 @@ class HomeFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         loadUserIcon()
-        // 自分の記録を読み込む（裏で更新チェック）
         loadRecentRecords()
-        // みんなの記録を読み込む（裏で更新チェック）
         loadEveryoneRecords()
     }
 
-    // 自分の最新記録
     private fun loadRecentRecords() {
         val user = FirebaseAuth.getInstance().currentUser ?: return
         val db = FirebaseFirestore.getInstance()
@@ -122,15 +117,8 @@ class HomeFragment : Fragment() {
             .get()
             .addOnSuccessListener { documents ->
                 val records = documents.toObjects(Record::class.java)
-
-                // ★★★ 追加: 取得したデータを保存しておく ★★★
                 myRecordList = records
-
-                // UI更新（データが変わっていればここで画像が切り替わる）
                 updateRecentRecordsUI(records)
-            }
-            .addOnFailureListener {
-                // エラーハンドリング
             }
     }
 
@@ -144,7 +132,6 @@ class HomeFragment : Fragment() {
         val img2 = view.findViewById<ImageView>(R.id.imgRecord2)
         val text2 = view.findViewById<TextView>(R.id.textRecordTitle2)
 
-        // 1件目
         if (records.isNotEmpty()) {
             val r1 = records[0]
             card1.visibility = View.VISIBLE
@@ -159,7 +146,6 @@ class HomeFragment : Fragment() {
             card1.visibility = View.INVISIBLE
         }
 
-        // 2件目
         if (records.size >= 2) {
             val r2 = records[1]
             card2.visibility = View.VISIBLE
@@ -175,7 +161,6 @@ class HomeFragment : Fragment() {
         }
     }
 
-    // みんなの最新投稿
     private fun loadEveryoneRecords() {
         val db = FirebaseFirestore.getInstance()
 
@@ -186,10 +171,7 @@ class HomeFragment : Fragment() {
             .get()
             .addOnSuccessListener { documents ->
                 val records = documents.toObjects(Record::class.java)
-
-                // ★★★ 追加: 取得したデータを保存しておく ★★★
                 publicRecordList = records
-
                 updateEveryoneRecordsUI(records)
             }
             .addOnFailureListener { e ->
@@ -207,7 +189,6 @@ class HomeFragment : Fragment() {
         val img2 = view.findViewById<ImageView>(R.id.imgPublic2)
         val text2 = view.findViewById<TextView>(R.id.textPublicTitle2)
 
-        // 1件目
         if (records.isNotEmpty()) {
             val r1 = records[0]
             card1.visibility = View.VISIBLE
@@ -222,7 +203,6 @@ class HomeFragment : Fragment() {
             card1.visibility = View.INVISIBLE
         }
 
-        // 2件目
         if (records.size >= 2) {
             val r2 = records[1]
             card2.visibility = View.VISIBLE
@@ -256,23 +236,35 @@ class HomeFragment : Fragment() {
         context.startActivity(intent)
     }
 
+    // ★★★ 修正: FirestoreからアイコンURLを取得して表示する ★★★
     private fun loadUserIcon() {
         val view = view ?: return
         val userIcon: ImageButton = view.findViewById(R.id.iconUser)
-        val user = FirebaseAuth.getInstance().currentUser
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        val db = FirebaseFirestore.getInstance()
 
-        if (user?.photoUrl != null) {
-            Glide.with(this)
-                .load(user.photoUrl)
-                .circleCrop()
-                .diskCacheStrategy(DiskCacheStrategy.ALL)
-                .into(userIcon)
-        } else {
-            Glide.with(this)
-                .load(R.drawable.outline_account_circle_24)
-                .circleCrop()
-                .into(userIcon)
-        }
+        // まずはデフォルトアイコンを表示しておく（読み込み中のチラつき防止）
+        Glide.with(this)
+            .load(R.drawable.outline_account_circle_24)
+            .circleCrop()
+            .into(userIcon)
+
+        // Firestoreから最新情報を取得
+        db.collection("users").document(user.uid).get()
+            .addOnSuccessListener { document ->
+                if (document != null && document.exists()) {
+                    val photoUrl = document.getString("photoUrl")
+                    // FirestoreにURLが保存されており、かつ空文字でない場合のみ読み込む
+                    if (!photoUrl.isNullOrEmpty()) {
+                        Glide.with(this)
+                            .load(photoUrl)
+                            .circleCrop()
+                            .diskCacheStrategy(DiskCacheStrategy.ALL)
+                            .into(userIcon)
+                    }
+                    // 空文字の場合はデフォルトのまま（初期ユーザー状態）
+                }
+            }
     }
 
     private fun loadNotificationIcon() {
