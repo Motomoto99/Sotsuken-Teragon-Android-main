@@ -89,7 +89,7 @@ class SearchFragment : Fragment() {
             // IDには数字ではなく、識別用の文字列 ("GROUP_WORLD" など) を入れます
             CategoryData(
                 apiId = "GROUP_WORLD",
-                name = "世界の料理・その他",
+                name = "世界の料理",
                 imageRes = null,
                 emoji = "🌍",
                 isOther = false // ★ falseにして SubCategoryFragment へ飛ばす
