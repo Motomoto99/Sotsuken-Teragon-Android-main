@@ -2,8 +2,7 @@ package com.example.sotugyo_kenkyu
 
 import android.os.Bundle
 import android.view.View
-import android.widget.Button
-import android.widget.ImageButton
+import android.widget.ImageButton // Button -> ImageButtonに変更
 import android.widget.ImageView
 import android.widget.RatingBar
 import android.widget.TextView
@@ -34,7 +33,7 @@ class RecordDetailActivity : AppCompatActivity() {
 
         // Intentからデータを受け取る
         recordId = intent.getStringExtra("RECORD_ID")
-        userId = intent.getStringExtra("USER_ID") // 自分の記録かどうかの確認用などに
+        userId = intent.getStringExtra("USER_ID")
         val menuName = intent.getStringExtra("MENU_NAME")
         val memo = intent.getStringExtra("MEMO")
         val imageUrl = intent.getStringExtra("IMAGE_URL")
@@ -45,15 +44,20 @@ class RecordDetailActivity : AppCompatActivity() {
         // UI取得
         val header = findViewById<View>(R.id.header)
         val buttonBack = findViewById<ImageButton>(R.id.buttonBack)
-        val textHeaderDate = findViewById<TextView>(R.id.textHeaderDate)
+        val textHeaderTitle = findViewById<TextView>(R.id.textHeaderTitle)
+
         val imageFood = findViewById<ImageView>(R.id.imageFood)
         val textMenuName = findViewById<TextView>(R.id.textMenuName)
         val switchPublic = findViewById<MaterialSwitch>(R.id.switchPublic)
         val ratingBar = findViewById<RatingBar>(R.id.ratingBar)
+
+        val textDate = findViewById<TextView>(R.id.textDate) // ★追加
         val textTime = findViewById<TextView>(R.id.textTime)
         val textMemo = findViewById<TextView>(R.id.textMemo)
-        val buttonEdit = findViewById<Button>(R.id.buttonEdit)
-        val buttonDelete = findViewById<Button>(R.id.buttonDelete)
+
+        // ★ 変更: ボタンタイプをImageButtonに
+        val buttonEdit = findViewById<ImageButton>(R.id.buttonEdit)
+        val buttonDelete = findViewById<ImageButton>(R.id.buttonDelete)
 
         // WindowInsets
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
@@ -69,6 +73,8 @@ class RecordDetailActivity : AppCompatActivity() {
         }
 
         // データをViewに反映
+        textHeaderTitle.text = "記録の詳細" // 固定タイトル
+
         textMenuName.text = menuName
         textMemo.text = memo
         switchPublic.isChecked = isPublic
@@ -76,8 +82,11 @@ class RecordDetailActivity : AppCompatActivity() {
 
         if (timestamp > 0) {
             val date = Date(timestamp)
-            textHeaderDate.text = SimpleDateFormat("yyyy/MM/dd", Locale.JAPAN).format(date)
+            textDate.text = SimpleDateFormat("yyyy/MM/dd", Locale.JAPAN).format(date)
             textTime.text = SimpleDateFormat("HH:mm", Locale.JAPAN).format(date)
+        } else {
+            textDate.text = ""
+            textTime.text = ""
         }
 
         if (!imageUrl.isNullOrEmpty()) {
@@ -91,7 +100,7 @@ class RecordDetailActivity : AppCompatActivity() {
 
         buttonEdit.setOnClickListener {
             Toast.makeText(this, "編集機能は未実装です", Toast.LENGTH_SHORT).show()
-            // ここにRecordInputActivityへ遷移して編集する処理を追加できます
+            // TODO: RecordInputActivityにデータを渡して編集モードで開く
         }
 
         buttonDelete.setOnClickListener {
@@ -120,7 +129,7 @@ class RecordDetailActivity : AppCompatActivity() {
             .delete()
             .addOnSuccessListener {
                 Toast.makeText(this, "削除しました", Toast.LENGTH_SHORT).show()
-                finish() // 画面を閉じて一覧に戻る
+                finish()
             }
             .addOnFailureListener {
                 Toast.makeText(this, "削除に失敗しました", Toast.LENGTH_SHORT).show()
