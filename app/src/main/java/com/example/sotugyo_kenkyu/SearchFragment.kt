@@ -105,17 +105,17 @@ class SearchFragment : Fragment() {
     private fun getCategoryData(): List<CategoryData> {
         val defaultImg = R.drawable.ic_launcher_background
         return listOf(
-            CategoryData("10", "お肉", defaultImg, null),
-            CategoryData("11", "魚介", defaultImg, null),
-            CategoryData("12", "野菜", defaultImg, null),
-            CategoryData("14", "ご飯もの", defaultImg, null),
-            CategoryData("15", "パスタ", defaultImg, null),
-            CategoryData("16", "麺類", defaultImg, null),
-            CategoryData("17", "スープ・汁物", defaultImg, null),
-            CategoryData("18", "サラダ", defaultImg, null),
-            CategoryData("23", "鍋料理", defaultImg, null),
-            CategoryData("21", "お菓子", defaultImg, null),
-            CategoryData("22", "パン", defaultImg, null),
+            CategoryData("10", "お肉", null, "🍖"),
+            CategoryData("11", "魚介", null, "🐟"),
+            CategoryData("12", "野菜", null, "🥬"),
+            CategoryData("14", "ご飯もの", null, "🍚"),
+            CategoryData("15", "パスタ", null, "🍝"),
+            CategoryData("16", "麺類", null, "🍜"),
+            CategoryData("17", "スープ・汁物", null, "🥣"),
+            CategoryData("18", "サラダ", null, "🥗"),
+            CategoryData("23", "鍋料理", null, "🍲"),
+            CategoryData("21", "お菓子", null, "🍩"),
+            CategoryData("22", "パン", null, "🍞"),
             CategoryData("GROUP_WORLD", "世界の料理", null, "🌍", false),
             CategoryData("GROUP_EVENTS", "行事・イベント", null, "🎉", false)
         )
