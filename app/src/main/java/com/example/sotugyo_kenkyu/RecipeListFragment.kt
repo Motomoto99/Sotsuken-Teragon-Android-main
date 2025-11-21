@@ -17,8 +17,8 @@ class RecipeListFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var db: FirebaseFirestore
-    private var targetCategoryId: String? = null // 検索するカテゴリID (例: "11")
-    private var categoryName: String? = null     // 表示用タイトル (例: "魚介系")
+    private var targetCategoryId: String? = null // 検索するカテゴリID (例: "11" または "41,42,43")
+    private var categoryName: String? = null     // 表示用タイトル
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,49 +55,63 @@ class RecipeListFragment : Fragment() {
         }
 
         if (targetCategoryId != null) {
+            // IDが渡されていれば検索開始
             fetchRecipesByCategoryId(targetCategoryId!!)
         } else {
             Toast.makeText(context, "カテゴリIDが指定されていません", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun fetchRecipesByCategoryId(categoryId: String) {
-        // デバッグログ：何を探そうとしているか表示
-        Log.d("RecipeDebug", "★検索開始: ID='$categoryId' を含むレシピを探します")
+    // ★ここを修正！カンマ区切りの複数IDに対応
+    private fun fetchRecipesByCategoryId(categoryIdRaw: String) {
+        // 1. カンマ区切りの文字列をリストに変換 (例: "41, 42" -> ["41", "42"])
+        val targetIds = categoryIdRaw.split(",").map { it.trim() }
 
-        db.collection("recipes")
-            .whereArrayContains("categoryPathIds", categoryId)
-            .get()
+        Log.d("RecipeDebug", "★検索開始: 対象IDリスト = $targetIds")
+
+        val collectionRef = db.collection("recipes")
+
+        // 2. IDの数によってクエリを使い分ける
+        val query = if (targetIds.size == 1) {
+            // 通常検索（1つのIDを含むものを検索）
+            collectionRef.whereArrayContains("categoryPathIds", targetIds[0])
+        } else {
+            // その他検索（リスト内のいずれかのIDを含むものを検索）
+            // ※注意: Firestoreの制限で、このリストは最大10個までです
+            collectionRef.whereArrayContainsAny("categoryPathIds", targetIds)
+        }
+
+        // 3. 検索実行
+        query.get()
             .addOnSuccessListener { result ->
                 val recipeList = ArrayList<Recipe>()
                 for (document in result) {
                     try {
                         val recipe = document.toObject(Recipe::class.java)
                         recipeList.add(recipe)
-                        // 見つかったレシピのタイトルをログに出す
                         Log.d("RecipeDebug", "〇 発見: ${recipe.recipeTitle}")
                     } catch (e: Exception) {
                         Log.e("RecipeDebug", "変換エラー", e)
                     }
                 }
 
-                // ★ここが重要！
-                // もし0件だった場合、そのカテゴリ（親ID）のデータを全件取ってきて、
-                // 「本当はどんなIDが入っているのか」をログに出してカンニングします。
                 if (recipeList.isEmpty()) {
-                    Log.e("RecipeDebug", "× 0件でした。データの調査を開始します...")
-                    investigateRealIds(categoryId) // 下で作る関数を呼び出す
-
-                    // 画面には「ありません」を表示
+                    Log.e("RecipeDebug", "× 0件でした。")
+                    // 必要ならここで調査用関数を呼ぶ（複数IDの場合は最初のIDを使って調査）
+                    if (targetIds.isNotEmpty()) {
+                        investigateRealIds(targetIds[0])
+                    }
                     Toast.makeText(context, "該当するレシピがありませんでした", Toast.LENGTH_SHORT).show()
                 }
 
+                // アダプターをセット
                 val adapter = RecipeAdapter(
                     recipeList,
                     onFavoriteClick = { recipe ->
                         Toast.makeText(context, "お気に入り: ${recipe.recipeTitle}", Toast.LENGTH_SHORT).show()
                     },
                     onItemClick = { recipe ->
+                        // 詳細画面へ遷移
                         val fragment = RecipeDetailFragment()
                         val args = Bundle()
                         args.putSerializable("RECIPE_DATA", recipe)
@@ -116,30 +130,21 @@ class RecipeListFragment : Fragment() {
             }
     }
 
-    // ★追加：データの中身を覗き見るための調査用関数
+    // データの中身を覗き見るための調査用関数（デバッグ用）
     private fun investigateRealIds(targetId: String) {
-        // ターゲットIDのハイフンより前（親ID）を取得。例: "10-276" -> "10"
         val parentId = targetId.split("-").firstOrNull() ?: return
-
-        Log.d("RecipeDebug", "親ID '$parentId' を持つデータを全検索して、正しいサブIDを調べます...")
+        Log.d("RecipeDebug", "親ID '$parentId' を持つデータを調査中...")
 
         db.collection("recipes")
             .whereArrayContains("categoryPathIds", parentId)
-            .limit(10) // 全部見ると多いので10件だけ
+            .limit(5)
             .get()
             .addOnSuccessListener { documents ->
                 for (doc in documents) {
-                    val ids = doc.get("categoryPathIds") as? List<String>
-                    val names = doc.get("categoryPathNames") as? List<String>
+                    val ids = doc.get("categoryPathIds")
                     val title = doc.getString("recipeTitle")
-
-                    Log.d("RecipeDebug", "--------------------------------------")
-                    Log.d("RecipeDebug", "料理名: $title")
-                    Log.d("RecipeDebug", "入っているID: $ids")
-                    Log.d("RecipeDebug", "入っている名前: $names")
+                    Log.d("RecipeDebug", "調査結果 -> 料理: $title, ID: $ids")
                 }
-                Log.d("RecipeDebug", "--------------------------------------")
-                Log.d("RecipeDebug", "↑ このログに出てくるIDを SubCategoryFragment に書けば動きます！")
             }
     }
 }

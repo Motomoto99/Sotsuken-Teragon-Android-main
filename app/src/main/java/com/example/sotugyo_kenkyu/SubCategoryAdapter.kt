@@ -27,9 +27,10 @@ class SubCategoryAdapter(
 
         holder.textName.text = name
 
-        // アイコンや矢印の制御（必要なら）
-        val icon = holder.itemView.findViewById<View>(R.id.iconCategory)
-        icon.visibility = View.GONE // 中分類ではアイコンを隠す例
+        // ★★★ ここを修正！ ★★★
+        // アイコンが入っている枠（CardView）ごと非表示にする
+        val iconContainer = holder.itemView.findViewById<View>(R.id.cardIconContainer)
+        iconContainer.visibility = View.GONE
 
         holder.itemView.setOnClickListener {
             onItemClick(id, name)
