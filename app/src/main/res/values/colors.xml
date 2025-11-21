@@ -6,5 +6,6 @@
     <color name="switch_thumb_off_thin">#60000000</color>
     <color name="switch_track_on_thin">#304CAF50</color>
     <color name="switch_thumb_on_thin">#4CAF50</color>
+    <color name="gold">#FFD700</color>
 
 </resources>
