@@ -14,6 +14,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 class AiFragment : Fragment() {
@@ -26,16 +27,11 @@ class AiFragment : Fragment() {
     private lateinit var buttonNewChat: ImageButton
 
     // --- 表示用メッセージ ---
-    private lateinit var chatAdapter: ChatAdapter
     private val messages = mutableListOf<ChatMessage>()
+    private lateinit var chatAdapter: ChatAdapter
 
-    /**
-     * メッセージ数に応じて「新しいチャット」ボタンの状態を更新
-     * - メッセージ 0 件: 押せない
-     * - メッセージ 1 件以上: 押せる
-     */
+    /** メッセージ数に応じて「新しいチャット」ボタンの活性/非活性を切り替える */
     private fun updateNewChatButtonState() {
-        // メッセージが1件もないときは「新しいチャット」を押せないようにする
         if (::buttonNewChat.isInitialized) {
             buttonNewChat.isEnabled = messages.isNotEmpty()
         }
@@ -59,13 +55,10 @@ class AiFragment : Fragment() {
         buttonNewChat = view.findViewById(R.id.buttonNewChat)
         val header = view.findViewById<View>(R.id.header)
 
-        // ★ WindowInsets設定 (ヘッダーにパディング適用)
+        // ステータスバー分をヘッダーに足す
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-
-            // XMLのpaddingVerticalを16dpとして扱う
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
-
             v.updatePadding(top = systemBars.top + originalPaddingTop)
             insets
         }
@@ -76,61 +69,67 @@ class AiFragment : Fragment() {
         chatAdapter = ChatAdapter(messages)
         recyclerView.adapter = chatAdapter
 
-        // ★ 初期状態（メッセージ0件）では新規チャットボタンは無効
+        // 初期状態
+        buttonSend.isEnabled = false
         updateNewChatButtonState()
 
-        // 初期状態では送信不可
-        buttonSend.isEnabled = false
-
-        val argChatId = arguments?.getString("chatId")
+        // ★「今どのチャットを開いているか」は SessionManager に一元管理させる
+        val currentId = AiChatSessionManager.currentChatId
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                if (argChatId != null) {
-                    // 過去チャット
-                    loadExistingChat(argChatId)
-                    buttonSend.isEnabled = true
-                } else {
-                    // 新規 or ログイン直後
+                if (currentId == null) {
+                    // 新規チャット状態（まだ履歴なし）
                     AiChatSessionManager.ensureSessionInitialized()
-                    buttonSend.isEnabled = true
+                    messages.clear()
+                    chatAdapter.notifyDataSetChanged()
+                } else {
+                    // 現在のチャットIDに紐づく履歴を表示・復元
+                    loadExistingChat(currentId)
                 }
+            } catch (ce: CancellationException) {
+                // 画面から離れたときなどの正常なキャンセル → 何もしない
+                // throw ce してもいいけど、ここでは完全に無視してOK
             } catch (e: Exception) {
+                // 本当に失敗したときだけログに出す（ユーザーには通知しない）
                 e.printStackTrace()
-                Toast.makeText(requireContext(), "チャット初期化エラー", Toast.LENGTH_SHORT).show()
+            } finally {
+                buttonSend.isEnabled = true
+                updateNewChatButtonState()
             }
         }
 
+        // 送信
         buttonSend.setOnClickListener { sendMessage() }
+
+        // チャット一覧へ
         buttonChatList.setOnClickListener { openChatList() }
 
+        // 新しいチャット開始
         buttonNewChat.setOnClickListener {
             viewLifecycleOwner.lifecycleScope.launch {
                 try {
                     buttonSend.isEnabled = false
-
-                    // AI セッションだけリセット（DBにはまだ書かない）
                     AiChatSessionManager.startNewSession()
 
-                    // 画面上のメッセージをクリア
                     messages.clear()
                     chatAdapter.notifyDataSetChanged()
                     scrollToBottom()
-
-                    // ★ メッセージ0件になったので新規チャットボタンを無効化
                     updateNewChatButtonState()
-
-                    buttonSend.isEnabled = true
                 } catch (e: Exception) {
                     e.printStackTrace()
                     Toast.makeText(requireContext(), "新規チャット作成失敗", Toast.LENGTH_SHORT).show()
+                } finally {
+                    buttonSend.isEnabled = true
                 }
             }
         }
     }
 
+    /** Firestoreから履歴を読み込み、AIセッションにも流し込む */
     private suspend fun loadExistingChat(chatId: String) {
         val list = ChatRepository.loadMessages(chatId)
+
         messages.clear()
         messages.addAll(list)
         chatAdapter.notifyDataSetChanged()
@@ -140,12 +139,9 @@ class AiFragment : Fragment() {
         for (m in list) {
             sessionChat.sendMessage(m.message)
         }
-        AiChatSessionManager.attachExistingChat(chatId)
-
-        // ★ 過去チャットなので基本的にメッセージあり → 新規チャットボタン有効
-        updateNewChatButtonState()
     }
 
+    /** メッセージ送信処理 */
     private fun sendMessage() {
         val sessionChat = AiChatSessionManager.chat
         if (sessionChat == null) {
@@ -183,7 +179,8 @@ class AiFragment : Fragment() {
 
                 addMessage(aiResponseText, isUser = false)
                 ChatRepository.addMessage(chatId, role = "assistant", text = aiResponseText)
-
+            } catch (ce: CancellationException) {
+                // 送信中に画面を離れたなど → 何もしない
             } catch (e: Exception) {
                 val errorText = "エラー: ${e.localizedMessage}"
                 addMessage(errorText, isUser = false)
@@ -196,9 +193,8 @@ class AiFragment : Fragment() {
     }
 
     private fun openChatList() {
-        val fragment = ChatListFragment()
         parentFragmentManager.beginTransaction()
-            .replace(R.id.fragment_container, fragment)
+            .replace(R.id.fragment_container, ChatListFragment())
             .addToBackStack(null)
             .commit()
     }
@@ -206,7 +202,6 @@ class AiFragment : Fragment() {
     private fun addMessage(text: String, isUser: Boolean) {
         messages.add(ChatMessage(message = text, isUser = isUser))
         chatAdapter.notifyItemInserted(messages.size - 1)
-        // ★ メッセージが1件以上になったので新規チャットボタンを有効化
         updateNewChatButtonState()
     }
 
@@ -222,6 +217,7 @@ class AiFragment : Fragment() {
     }
 }
 
+// タイトル自動生成（以前使っていたやつ）
 fun makeAutoTitleFromFirstMessage(text: String): String {
     val trimmed = text.trim()
     if (trimmed.isEmpty()) return "新しいチャット"
