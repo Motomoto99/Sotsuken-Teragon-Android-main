@@ -15,10 +15,11 @@ import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.FirebaseFirestore // 追加
+import com.google.firebase.firestore.SetOptions // 追加
 
 class LoginActivity : AppCompatActivity() {
 
-    // ★変更: by lazy を使って安全に初期化
     private val auth: FirebaseAuth by lazy { Firebase.auth }
 
     private lateinit var googleSignInClient: GoogleSignInClient
@@ -28,7 +29,6 @@ class LoginActivity : AppCompatActivity() {
             handleGoogleSignInResult(result.data)
         }
 
-    // ★起動時のチェック（ログイン済みならスキップ）
     override fun onStart() {
         super.onStart()
         if (auth.currentUser != null) {
@@ -41,10 +41,8 @@ class LoginActivity : AppCompatActivity() {
         installSplashScreen()
         setContentView(R.layout.activity_login)
 
-        // Googleログイン設定
         setupGoogleLogin()
 
-        // ボタン設定
         findViewById<MaterialButton>(R.id.emailLoginButton).setOnClickListener {
             startActivity(Intent(this, EmailLoginActivity::class.java))
         }
@@ -87,7 +85,28 @@ class LoginActivity : AppCompatActivity() {
             auth.signInWithCredential(credential)
                 .addOnCompleteListener { authTask ->
                     if (authTask.isSuccessful) {
-                        goToHomeScreen()
+                        val user = auth.currentUser
+                        // ★新規ユーザーかどうか判定
+                        val isNewUser = authTask.result.additionalUserInfo?.isNewUser == true
+
+                        if (user != null && isNewUser) {
+                            // ★Googleの情報を使わず、固定の初期値をFirestoreに保存する
+                            val db = FirebaseFirestore.getInstance()
+                            val userData = hashMapOf(
+                                "username" to "初期ユーザー", // 名前を固定
+                                "photoUrl" to ""           // 画像なし（デフォルトアイコンを表示させる）
+                            )
+
+                            db.collection("users").document(user.uid)
+                                .set(userData, SetOptions.merge())
+                                .addOnCompleteListener {
+                                    // 保存完了後にホームへ（失敗しても進む）
+                                    goToHomeScreen()
+                                }
+                        } else {
+                            // 既存ユーザーはそのままホームへ
+                            goToHomeScreen()
+                        }
                     } else {
                         Toast.makeText(this, "Firebase ログインに失敗しました", Toast.LENGTH_SHORT).show()
                     }
@@ -102,7 +121,6 @@ class LoginActivity : AppCompatActivity() {
         val intent = Intent(this, DataLoadingActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
-        // 画面遷移のアニメーションを無効化（スムーズに見せるため）
         overridePendingTransition(0, 0)
     }
 }

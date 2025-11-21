@@ -32,6 +32,10 @@ class HomeFragment : Fragment() {
     private var currentSnapshots: QuerySnapshot? = null
     private var lastSeenDate: Timestamp? = null
 
+    // ★★★ 追加: データをメモリに保持しておくための変数 ★★★
+    private var myRecordList: List<Record> = emptyList()
+    private var publicRecordList: List<Record> = emptyList()
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -68,13 +72,20 @@ class HomeFragment : Fragment() {
             (activity as? HomeActivity)?.findViewById<BottomNavigationView>(R.id.bottomNavigation)?.selectedItemId = R.id.nav_record
         }
 
-        // ★追加: みんなの投稿「もっと見る」
         val textMorePublic: TextView = view.findViewById(R.id.textMorePublic)
         textMorePublic.setOnClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, PublicRecordsFragment())
                 .addToBackStack(null)
                 .commit()
+        }
+
+        // ★★★ 追加: 画面が表示された瞬間、すでにデータを持っていれば即表示する ★★★
+        if (myRecordList.isNotEmpty()) {
+            updateRecentRecordsUI(myRecordList)
+        }
+        if (publicRecordList.isNotEmpty()) {
+            updateEveryoneRecordsUI(publicRecordList)
         }
 
         loadUserIcon()
@@ -94,9 +105,9 @@ class HomeFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         loadUserIcon()
-        // 自分の記録を読み込む
+        // 自分の記録を読み込む（裏で更新チェック）
         loadRecentRecords()
-        // ★追加: みんなの記録を読み込む
+        // みんなの記録を読み込む（裏で更新チェック）
         loadEveryoneRecords()
     }
 
@@ -111,6 +122,11 @@ class HomeFragment : Fragment() {
             .get()
             .addOnSuccessListener { documents ->
                 val records = documents.toObjects(Record::class.java)
+
+                // ★★★ 追加: 取得したデータを保存しておく ★★★
+                myRecordList = records
+
+                // UI更新（データが変わっていればここで画像が切り替わる）
                 updateRecentRecordsUI(records)
             }
             .addOnFailureListener {
@@ -159,13 +175,10 @@ class HomeFragment : Fragment() {
         }
     }
 
-    // ★追加: みんなの最新投稿（Collection Group Query）
+    // みんなの最新投稿
     private fun loadEveryoneRecords() {
         val db = FirebaseFirestore.getInstance()
 
-        // "my_records" という名前の全コレクションから、isPublic=true のものを日付順で取得
-        // ※このクエリを実行するにはFirestoreでインデックスを作成する必要があります。
-        // 実行時にLogcatにエラーとともにインデックス作成用URLが表示されるので、それをクリックしてください。
         db.collectionGroup("my_records")
             .whereEqualTo("isPublic", true)
             .orderBy("date", Query.Direction.DESCENDING)
@@ -173,6 +186,10 @@ class HomeFragment : Fragment() {
             .get()
             .addOnSuccessListener { documents ->
                 val records = documents.toObjects(Record::class.java)
+
+                // ★★★ 追加: 取得したデータを保存しておく ★★★
+                publicRecordList = records
+
                 updateEveryoneRecordsUI(records)
             }
             .addOnFailureListener { e ->
@@ -180,7 +197,6 @@ class HomeFragment : Fragment() {
             }
     }
 
-    // ★追加: みんなの投稿UI更新
     private fun updateEveryoneRecordsUI(records: List<Record>) {
         val view = view ?: return
         val card1 = view.findViewById<CardView>(R.id.cardPublic1)
