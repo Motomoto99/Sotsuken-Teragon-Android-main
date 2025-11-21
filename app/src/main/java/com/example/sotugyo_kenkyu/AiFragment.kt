@@ -26,6 +26,9 @@ class AiFragment : Fragment() {
     private lateinit var buttonChatList: ImageButton
     private lateinit var buttonNewChat: ImageButton
 
+    // ★追加: ローディング画面
+    private lateinit var layoutAiLoading: View
+
     // --- 表示用メッセージ ---
     private val messages = mutableListOf<ChatMessage>()
     private lateinit var chatAdapter: ChatAdapter
@@ -53,6 +56,10 @@ class AiFragment : Fragment() {
         buttonSend = view.findViewById(R.id.buttonSend)
         buttonChatList = view.findViewById(R.id.buttonChatList)
         buttonNewChat = view.findViewById(R.id.buttonNewChat)
+
+        // ★追加: ローディングViewの取得
+        layoutAiLoading = view.findViewById(R.id.layoutAiLoading)
+
         val header = view.findViewById<View>(R.id.header)
 
         // ステータスバー分をヘッダーに足す
@@ -78,8 +85,12 @@ class AiFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
+                // ★変更: 処理開始前にローディングを表示して画面を隠す
+                setLoading(true)
+
                 if (currentId == null) {
                     // 新規チャット状態（まだ履歴なし）
+                    // ★ここでアレルギー情報を含むプロンプトの再読み込みが行われる
                     AiChatSessionManager.ensureSessionInitialized()
                     messages.clear()
                     chatAdapter.notifyDataSetChanged()
@@ -93,6 +104,9 @@ class AiFragment : Fragment() {
                 // 本当に失敗したときだけログに出す（ユーザーには通知しない）
                 e.printStackTrace()
             } finally {
+                // ★変更: 準備完了（またはエラー）したらローディングを消す
+                setLoading(false)
+
                 buttonSend.isEnabled = true
                 updateNewChatButtonState()
             }
@@ -108,7 +122,10 @@ class AiFragment : Fragment() {
         buttonNewChat.setOnClickListener {
             viewLifecycleOwner.lifecycleScope.launch {
                 try {
+                    // ★ここもローディングを表示する（一瞬だが切り替わりを見せるため）
+                    setLoading(true)
                     buttonSend.isEnabled = false
+
                     AiChatSessionManager.startNewSession()
 
                     messages.clear()
@@ -119,14 +136,28 @@ class AiFragment : Fragment() {
                     e.printStackTrace()
                     Toast.makeText(requireContext(), "新規チャット作成失敗", Toast.LENGTH_SHORT).show()
                 } finally {
+                    setLoading(false)
                     buttonSend.isEnabled = true
                 }
             }
         }
     }
 
+    // ★追加: ローディングの表示切り替え関数
+    private fun setLoading(isLoading: Boolean) {
+        if (isLoading) {
+            layoutAiLoading.visibility = View.VISIBLE
+            // ローディング中は入力もできないようにする
+            editTextMessage.isEnabled = false
+        } else {
+            layoutAiLoading.visibility = View.GONE
+            editTextMessage.isEnabled = true
+        }
+    }
+
     /** Firestoreから履歴を読み込み、AIセッションにも流し込む */
     private suspend fun loadExistingChat(chatId: String) {
+        // ... (既存のコードと同じ) ...
         val list = ChatRepository.loadMessages(chatId)
 
         messages.clear()
@@ -142,6 +173,7 @@ class AiFragment : Fragment() {
 
     /** メッセージ送信処理 */
     private fun sendMessage() {
+        // ... (既存のコードと同じ) ...
         val sessionChat = AiChatSessionManager.chat
         if (sessionChat == null) {
             Toast.makeText(requireContext(), "準備中です…", Toast.LENGTH_SHORT).show()
@@ -167,11 +199,9 @@ class AiFragment : Fragment() {
 
                 ChatRepository.addMessage(chatId, role = "user", text = userMessageText)
 
-                // ★変更: 初回メッセージの場合、AIにタイトル生成を依頼する
                 if (!AiChatSessionManager.firstUserMessageSent) {
                     AiChatSessionManager.markFirstUserMessageSent()
 
-                    // 並行してタイトル生成を実行（チャットの応答を待たずに裏で動かす）
                     launch {
                         val newTitle = AiChatSessionManager.generateTitleFromMessage(userMessageText)
                         ChatRepository.updateChatTitle(chatId, newTitle)
@@ -184,7 +214,6 @@ class AiFragment : Fragment() {
                 addMessage(aiResponseText, isUser = false)
                 ChatRepository.addMessage(chatId, role = "assistant", text = aiResponseText)
             } catch (ce: CancellationException) {
-                // 送信中に画面を離れたなど → 何もしない
             } catch (e: Exception) {
                 val errorText = "エラー: ${e.localizedMessage}"
                 addMessage(errorText, isUser = false)
@@ -220,5 +249,3 @@ class AiFragment : Fragment() {
         recyclerView.adapter = null
     }
 }
-
-// ★削除: 以前の makeAutoTitleFromFirstMessage 関数は不要になったため削除しました

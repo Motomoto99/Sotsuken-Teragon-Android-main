@@ -10,11 +10,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
-import androidx.lifecycle.lifecycleScope // ★追加
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
-import kotlinx.coroutines.launch // ★追加
 
 class AllergySettingsActivity : AppCompatActivity() {
 
@@ -87,21 +85,15 @@ class AllergySettingsActivity : AppCompatActivity() {
         val selectedAllergies = checkBoxes.filter { it.isChecked }.map { it.text.toString() }
         val userData = hashMapOf("allergies" to selectedAllergies)
 
+        // Firestoreへの保存
         db.collection("users").document(user.uid)
             .set(userData, SetOptions.merge())
             .addOnSuccessListener {
-                // ★変更: 保存成功時にAIセッションを作り直す（プロンプト再読み込み）
-                lifecycleScope.launch {
-                    try {
-                        // ここで新しいセッションを開始すると、最新のアレルギー情報を読み込んでくれます
-                        AiChatSessionManager.startNewSession()
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    } finally {
-                        Toast.makeText(this@AllergySettingsActivity, "保存しました", Toast.LENGTH_SHORT).show()
-                        finish() // 画面を閉じる
-                    }
-                }
+                // ★ここ重要：重たい通信処理を削除し、メモリ上のセッションをリセットするだけにする（軽量化は維持）
+                AiChatSessionManager.resetSession()
+
+                Toast.makeText(this@AllergySettingsActivity, "保存しました", Toast.LENGTH_SHORT).show()
+                finish() // 画面を即座に閉じる
             }
             .addOnFailureListener { e ->
                 Toast.makeText(this, "保存に失敗しました: ${e.message}", Toast.LENGTH_SHORT).show()
