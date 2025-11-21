@@ -80,7 +80,12 @@ dependencies {
     // ★★★ 追加: 下に引っ張って更新するためのライブラリ ★★★
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
+    // Google AI SDK (Gemini)
+    implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
 
+    // コルーチン (非同期処理用。もし既にあれば不要です)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
 
 
 }

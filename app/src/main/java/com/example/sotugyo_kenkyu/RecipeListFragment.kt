@@ -11,18 +11,24 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 class RecipeListFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var db: FirebaseFirestore
-    private var targetCategoryId: String? = null // 検索するカテゴリID (例: "11" または "41,42,43")
-    private var categoryName: String? = null     // 表示用タイトル
+    private lateinit var auth: FirebaseAuth
+    private var targetCategoryId: String? = null
+    private var categoryName: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 前の画面からIDと名前を受け取る
         arguments?.let {
             targetCategoryId = it.getString("CATEGORY_ID")
             categoryName = it.getString("CATEGORY_NAME")
@@ -33,7 +39,6 @@ class RecipeListFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // レイアウトファイルを読み込む
         return inflater.inflate(R.layout.fragment_recipe_list_screen, container, false)
     }
 
@@ -41,13 +46,14 @@ class RecipeListFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         db = FirebaseFirestore.getInstance()
+        auth = FirebaseAuth.getInstance()
+
         recyclerView = view.findViewById(R.id.recyclerViewRecipes)
         recyclerView.layoutManager = LinearLayoutManager(context)
 
         val titleText: TextView = view.findViewById(R.id.textPageTitle)
         val backButton: ImageButton = view.findViewById(R.id.buttonBack)
 
-        // タイトル設定
         titleText.text = categoryName ?: "検索結果"
 
         backButton.setOnClickListener {
@@ -55,96 +61,114 @@ class RecipeListFragment : Fragment() {
         }
 
         if (targetCategoryId != null) {
-            // IDが渡されていれば検索開始
-            fetchRecipesByCategoryId(targetCategoryId!!)
-        } else {
-            Toast.makeText(context, "カテゴリIDが指定されていません", Toast.LENGTH_SHORT).show()
+            // コルーチンを使って非同期処理を行う
+            CoroutineScope(Dispatchers.Main).launch {
+                searchRecipesWithFavoriteStatus(targetCategoryId!!)
+            }
         }
     }
 
-    // ★ここを修正！カンマ区切りの複数IDに対応
-    private fun fetchRecipesByCategoryId(categoryIdRaw: String) {
-        // 1. カンマ区切りの文字列をリストに変換 (例: "41, 42" -> ["41", "42"])
+    private suspend fun searchRecipesWithFavoriteStatus(categoryIdRaw: String) {
+        val user = auth.currentUser
+        if (user == null) return
+
+        // 1. まずはレシピを普通に検索して取得
         val targetIds = categoryIdRaw.split(",").map { it.trim() }
-
-        Log.d("RecipeDebug", "★検索開始: 対象IDリスト = $targetIds")
-
         val collectionRef = db.collection("recipes")
 
-        // 2. IDの数によってクエリを使い分ける
         val query = if (targetIds.size == 1) {
-            // 通常検索（1つのIDを含むものを検索）
             collectionRef.whereArrayContains("categoryPathIds", targetIds[0])
         } else {
-            // その他検索（リスト内のいずれかのIDを含むものを検索）
-            // ※注意: Firestoreの制限で、このリストは最大10個までです
             collectionRef.whereArrayContainsAny("categoryPathIds", targetIds)
         }
 
-        // 3. 検索実行
-        query.get()
-            .addOnSuccessListener { result ->
-                val recipeList = ArrayList<Recipe>()
-                for (document in result) {
-                    try {
-                        val recipe = document.toObject(Recipe::class.java)
-                        recipeList.add(recipe)
-                        Log.d("RecipeDebug", "〇 発見: ${recipe.recipeTitle}")
-                    } catch (e: Exception) {
-                        Log.e("RecipeDebug", "変換エラー", e)
-                    }
-                }
+        try {
+            // レシピ取得 (awaitで待機)
+            val recipeSnapshot = withContext(Dispatchers.IO) { query.get().await() }
+            val recipeList = ArrayList<Recipe>()
 
-                if (recipeList.isEmpty()) {
-                    Log.e("RecipeDebug", "× 0件でした。")
-                    // 必要ならここで調査用関数を呼ぶ（複数IDの場合は最初のIDを使って調査）
-                    if (targetIds.isNotEmpty()) {
-                        investigateRealIds(targetIds[0])
-                    }
-                    Toast.makeText(context, "該当するレシピがありませんでした", Toast.LENGTH_SHORT).show()
-                }
-
-                // アダプターをセット
-                val adapter = RecipeAdapter(
-                    recipeList,
-                    onFavoriteClick = { recipe ->
-                        Toast.makeText(context, "お気に入り: ${recipe.recipeTitle}", Toast.LENGTH_SHORT).show()
-                    },
-                    onItemClick = { recipe ->
-                        // 詳細画面へ遷移
-                        val fragment = RecipeDetailFragment()
-                        val args = Bundle()
-                        args.putSerializable("RECIPE_DATA", recipe)
-                        fragment.arguments = args
-
-                        parentFragmentManager.beginTransaction()
-                            .replace(R.id.fragment_container, fragment)
-                            .addToBackStack(null)
-                            .commit()
-                    }
-                )
-                recyclerView.adapter = adapter
+            for (document in recipeSnapshot) {
+                val recipe = document.toObject(Recipe::class.java)
+                // ★重要：ドキュメントIDをセットする
+                recipe.id = document.id
+                recipeList.add(recipe)
             }
-            .addOnFailureListener { e ->
-                Toast.makeText(context, "読み込みエラー: ${e.message}", Toast.LENGTH_SHORT).show()
+
+            // 2. 次に、ユーザーの「お気に入りリスト」のIDだけを取得
+            // これで「どれがお気に入り済みか」を確認する
+            val myFavoritesSnapshot = withContext(Dispatchers.IO) {
+                db.collection("users")
+                    .document(user.uid)
+                    .collection("favorites")
+                    .get()
+                    .await()
             }
+
+            // お気に入りされているレシピIDのセット(集合)を作る
+            val favoriteIds = myFavoritesSnapshot.documents.map { it.id }.toSet()
+
+            // 3. 突き合わせ処理：お気に入りならフラグを立てる
+            for (recipe in recipeList) {
+                if (favoriteIds.contains(recipe.id)) {
+                    recipe.isFavorite = true
+                }
+            }
+
+            // 4. アダプターにセットして表示
+            setupAdapter(recipeList)
+
+        } catch (e: Exception) {
+            Log.e("RecipeList", "Error", e)
+            Toast.makeText(context, "読み込みエラーが発生しました", Toast.LENGTH_SHORT).show()
+        }
     }
 
-    // データの中身を覗き見るための調査用関数（デバッグ用）
-    private fun investigateRealIds(targetId: String) {
-        val parentId = targetId.split("-").firstOrNull() ?: return
-        Log.d("RecipeDebug", "親ID '$parentId' を持つデータを調査中...")
+    private fun setupAdapter(recipeList: List<Recipe>) {
+        val adapter = RecipeAdapter(
+            recipeList,
+            onFavoriteClick = { recipe ->
+                // 星が押されたときの処理（保存 or 削除）
+                toggleFavorite(recipe)
+            },
+            onItemClick = { recipe ->
+                // 詳細画面へ
+                val fragment = RecipeDetailFragment()
+                val args = Bundle()
+                args.putSerializable("RECIPE_DATA", recipe)
+                fragment.arguments = args
 
-        db.collection("recipes")
-            .whereArrayContains("categoryPathIds", parentId)
-            .limit(5)
-            .get()
-            .addOnSuccessListener { documents ->
-                for (doc in documents) {
-                    val ids = doc.get("categoryPathIds")
-                    val title = doc.getString("recipeTitle")
-                    Log.d("RecipeDebug", "調査結果 -> 料理: $title, ID: $ids")
-                }
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.fragment_container, fragment)
+                    .addToBackStack(null)
+                    .commit()
             }
+        )
+        recyclerView.adapter = adapter
+    }
+
+    // お気に入りの登録・削除処理
+    private fun toggleFavorite(recipe: Recipe) {
+        val user = auth.currentUser ?: return
+
+        // 保存先：users/{uid}/favorites/{recipeId}
+        val favoriteRef = db.collection("users")
+            .document(user.uid)
+            .collection("favorites")
+            .document(recipe.id) // レシピIDをそのままドキュメントIDにする
+
+        if (recipe.isFavorite) {
+            // ONになった -> Firestoreに保存
+            // レシピデータをそのままコピーして保存しておくと、一覧表示が速い
+            favoriteRef.set(recipe)
+                .addOnFailureListener { e ->
+                    Log.e("Fav", "保存失敗", e)
+                }
+        } else {
+            // OFFになった -> Firestoreから削除
+            favoriteRef.delete()
+                .addOnFailureListener { e ->
+                    Log.e("Fav", "削除失敗", e)
+                }
+        }
     }
 }
