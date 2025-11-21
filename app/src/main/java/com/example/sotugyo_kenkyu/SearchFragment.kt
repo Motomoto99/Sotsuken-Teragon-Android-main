@@ -72,18 +72,18 @@ class SearchFragment : Fragment() {
 
         return listOf(
             // --- メインカテゴリ (中分類へ遷移) ---
-            CategoryData("10", "お肉", defaultImg, null),
-            CategoryData("11", "魚介", defaultImg, null),
-            CategoryData("12", "野菜", defaultImg, null),
-            CategoryData("14", "ご飯もの", defaultImg, null),
-            CategoryData("15", "パスタ", defaultImg, null),
-            CategoryData("16", "麺類", defaultImg, null),
-            CategoryData("17", "スープ・汁物", defaultImg, null),
-            CategoryData("18", "サラダ", defaultImg, null),
-            CategoryData("23", "鍋料理", defaultImg, null),
+            CategoryData("10", "お肉", null, "🍖"),
+            CategoryData("11", "魚介", null, "🐟"),
+            CategoryData("12", "野菜", null, "🥬"),
+            CategoryData("14", "ご飯もの", null, "🍚"),
+            CategoryData("15", "パスタ", null, "🍝"),
+            CategoryData("16", "麺類", null, "🍜"),
+            CategoryData("17", "スープ・汁物", null, "🥣"),
+            CategoryData("18", "サラダ", null, "🥗"),
+            CategoryData("23", "鍋料理", null, "🍲"),
             // ★お菓子とパンをメインに復帰
-            CategoryData("21", "お菓子", defaultImg, null),
-            CategoryData("22", "パン", defaultImg, null),
+            CategoryData("21", "お菓子", null, "🍩"),
+            CategoryData("22", "パン", null, "🍞"),
 
             // --- グループ系 (中分類画面を使ってリスト表示させるため isOther = false にする) ---
             // IDには数字ではなく、識別用の文字列 ("GROUP_WORLD" など) を入れます
@@ -94,6 +94,7 @@ class SearchFragment : Fragment() {
                 emoji = "🌍",
                 isOther = false // ★ falseにして SubCategoryFragment へ飛ばす
             ),
+
             CategoryData(
                 apiId = "GROUP_EVENTS",
                 name = "行事・イベント",
