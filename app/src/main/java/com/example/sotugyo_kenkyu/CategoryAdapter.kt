@@ -9,31 +9,39 @@ import androidx.recyclerview.widget.RecyclerView
 
 class CategoryAdapter(
     private val categoryList: List<CategoryData>,
-    private val onItemClick: (CategoryData) -> Unit // クリック時の処理をFragmentに任せる
+    private val onItemClick: (CategoryData) -> Unit
 ) : RecyclerView.Adapter<CategoryAdapter.CategoryViewHolder>() {
 
-    // Viewの保持役
     class CategoryViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val textName: TextView = view.findViewById(R.id.textCategoryName)
-        val icon: ImageView = view.findViewById(R.id.iconCategory)
-        val container: View = view // クリック範囲用
+        val imgPhoto: ImageView = view.findViewById(R.id.imgCategoryPhoto) // 画像View
+        val textEmoji: TextView = view.findViewById(R.id.textEmoji)       // 絵文字View
+        val container: View = view
     }
 
-    // 1. ここでレイアウト(型)を作る
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CategoryViewHolder {
-        // 既存の item_category_button を使うよ！
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_category_button, parent, false)
         return CategoryViewHolder(view)
     }
 
-    // 2. ここでデータを流し込む
     override fun onBindViewHolder(holder: CategoryViewHolder, position: Int) {
         val category = categoryList[position]
         holder.textName.text = category.name
-        holder.icon.setImageResource(category.iconRes)
 
-        // クリックイベント
+        // ★ ここで画像か絵文字かを切り替える！
+        if (category.imageRes != null) {
+            // 画像がある場合（メインカテゴリ）
+            holder.imgPhoto.visibility = View.VISIBLE
+            holder.textEmoji.visibility = View.GONE
+            holder.imgPhoto.setImageResource(category.imageRes)
+        } else {
+            // 画像がない場合（その他カテゴリ）
+            holder.imgPhoto.visibility = View.GONE
+            holder.textEmoji.visibility = View.VISIBLE
+            holder.textEmoji.text = category.emoji ?: "📁"
+        }
+
         holder.container.setOnClickListener {
             onItemClick(category)
         }
