@@ -25,9 +25,8 @@ import java.util.Locale
 class RecordDetailActivity : AppCompatActivity() {
 
     private var recordId: String? = null
-    private var userId: String? = null
+    private var userId: String? = null // 記録を作成したユーザーのID
 
-    // UIコンポーネントをメンバ変数として保持（再読み込み時に使用）
     private lateinit var textHeaderTitle: TextView
     private lateinit var imageFood: ImageView
     private lateinit var textMenuName: TextView
@@ -37,7 +36,6 @@ class RecordDetailActivity : AppCompatActivity() {
     private lateinit var textTime: TextView
     private lateinit var textMemo: TextView
 
-    // 編集用の一時データ保持
     private var currentRecord: Record? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,11 +43,9 @@ class RecordDetailActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_record_detail)
 
-        // IntentからIDを受け取る
         recordId = intent.getStringExtra("RECORD_ID")
         userId = intent.getStringExtra("USER_ID")
 
-        // UI取得
         val header = findViewById<View>(R.id.header)
         val buttonBack = findViewById<ImageButton>(R.id.buttonBack)
         textHeaderTitle = findViewById(R.id.textHeaderTitle)
@@ -66,7 +62,6 @@ class RecordDetailActivity : AppCompatActivity() {
         val buttonEdit = findViewById<ImageButton>(R.id.buttonEdit)
         val buttonDelete = findViewById<ImageButton>(R.id.buttonDelete)
 
-        // WindowInsets設定
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
@@ -80,22 +75,22 @@ class RecordDetailActivity : AppCompatActivity() {
         }
 
         textHeaderTitle.text = "記録の詳細"
-
-        // 詳細画面ではスイッチ操作不可にしておく（見る専用）
-        // ※もし詳細画面で直接切り替えたい場合は true にし、リスナーで即時保存処理が必要
         switchPublic.isClickable = false
 
-        // 最初にIntentから渡されたデータを表示
+        // ★追加: 自分の記録でなければ、編集・削除ボタンを隠す
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser != null && userId != null && currentUser.uid != userId) {
+            buttonEdit.visibility = View.GONE
+            buttonDelete.visibility = View.GONE
+        }
+
         displayInitialData()
 
-        // 戻るボタン
         buttonBack.setOnClickListener { finish() }
 
-        // 編集ボタン
         buttonEdit.setOnClickListener {
             if (currentRecord != null) {
                 val intent = Intent(this, RecordInputActivity::class.java)
-                // 編集モードに必要なデータを渡す
                 intent.putExtra("RECORD_ID", currentRecord!!.id)
                 intent.putExtra("MENU_NAME", currentRecord!!.menuName)
                 intent.putExtra("MEMO", currentRecord!!.memo)
@@ -109,16 +104,20 @@ class RecordDetailActivity : AppCompatActivity() {
             }
         }
 
-        // 削除ボタン
         buttonDelete.setOnClickListener {
             showDeleteConfirmation()
         }
     }
 
-    // 編集画面から戻ってきたときに最新データを再取得して反映する
     override fun onResume() {
         super.onResume()
-        fetchLatestData()
+        // 編集権限がある（＝自分の記録）場合のみ再読み込みを試みる
+        // 他人の記録なら再読み込みは一旦スキップ（またはパスを調整する必要がある）
+        // ここでは簡単のため、自分が所有者の場合のみ再取得ロジックを走らせる
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser != null && userId != null && currentUser.uid == userId) {
+            fetchLatestData()
+        }
     }
 
     private fun displayInitialData() {
@@ -129,7 +128,6 @@ class RecordDetailActivity : AppCompatActivity() {
         val rating = intent.getFloatExtra("RATING", 0f)
         val timestamp = intent.getLongExtra("DATE_TIMESTAMP", 0)
 
-        // currentRecordを仮構築
         currentRecord = Record(
             id = recordId ?: "",
             userId = userId ?: "",
@@ -139,7 +137,6 @@ class RecordDetailActivity : AppCompatActivity() {
             isPublic = isPublic,
             rating = rating
         )
-        // UI更新
         updateUI(menuName, memo, isPublic, rating, timestamp, imageUrl)
     }
 
@@ -168,9 +165,6 @@ class RecordDetailActivity : AppCompatActivity() {
                     }
                 }
             }
-            .addOnFailureListener {
-                // 読み込み失敗時は何もしない
-            }
     }
 
     private fun updateUI(
@@ -183,11 +177,8 @@ class RecordDetailActivity : AppCompatActivity() {
     ) {
         textMenuName.text = menuName
         textMemo.text = memo
-
-        // 公開状態に合わせてスイッチの状態とテキストを変更
         switchPublic.isChecked = isPublic
         switchPublic.text = if (isPublic) "公開中" else "非公開"
-
         ratingBar.rating = rating
 
         if (timestamp > 0) {
