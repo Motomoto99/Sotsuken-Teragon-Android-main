@@ -155,6 +155,17 @@ $allergyInfo
     }
 
     /**
+     * ★追加: 現在のセッションを破棄する（次回利用時に再生成させるため）
+     * - アレルギー設定変更時などに呼び出す
+     * - 通信は発生しないため一瞬で終わる
+     */
+    fun resetSession() {
+        chat = null
+        currentChatId = null
+        firstUserMessageSent = false
+    }
+
+    /**
      * 過去チャットを開くときに、対象の chatId を紐付ける。
      * - DB には既にあるチャットの続き、という前提
      */

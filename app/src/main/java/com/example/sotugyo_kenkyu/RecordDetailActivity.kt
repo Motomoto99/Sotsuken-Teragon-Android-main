@@ -25,7 +25,7 @@ import java.util.Locale
 class RecordDetailActivity : AppCompatActivity() {
 
     private var recordId: String? = null
-    private var userId: String? = null // 記録を作成したユーザーのID
+    private var userId: String? = null
 
     private lateinit var textHeaderTitle: TextView
     private lateinit var imageFood: ImageView
@@ -35,6 +35,10 @@ class RecordDetailActivity : AppCompatActivity() {
     private lateinit var textDate: TextView
     private lateinit var textTime: TextView
     private lateinit var textMemo: TextView
+
+    // ★追加: 投稿者情報のView
+    private lateinit var imageAuthorIcon: ImageView
+    private lateinit var textAuthorName: TextView
 
     private var currentRecord: Record? = null
 
@@ -59,6 +63,10 @@ class RecordDetailActivity : AppCompatActivity() {
         textTime = findViewById(R.id.textTime)
         textMemo = findViewById(R.id.textMemo)
 
+        // ★追加: View取得
+        imageAuthorIcon = findViewById(R.id.imageAuthorIcon)
+        textAuthorName = findViewById(R.id.textAuthorName)
+
         val buttonEdit = findViewById<ImageButton>(R.id.buttonEdit)
         val buttonDelete = findViewById<ImageButton>(R.id.buttonDelete)
 
@@ -77,11 +85,17 @@ class RecordDetailActivity : AppCompatActivity() {
         textHeaderTitle.text = "記録の詳細"
         switchPublic.isClickable = false
 
-        // ★追加: 自分の記録でなければ、編集・削除ボタンを隠す
         val currentUser = FirebaseAuth.getInstance().currentUser
         if (currentUser != null && userId != null && currentUser.uid != userId) {
+            // 自分以外の投稿の場合
             buttonEdit.visibility = View.GONE
             buttonDelete.visibility = View.GONE
+            // ★追加: 投稿者情報をロード
+            loadAuthorInfo(userId!!)
+        } else {
+            // 自分の投稿の場合
+            // 必要なら自分の情報を表示しても良いが、ここでは「あなた」とするか、ロードする
+            loadAuthorInfo(currentUser?.uid ?: "")
         }
 
         displayInitialData()
@@ -109,11 +123,40 @@ class RecordDetailActivity : AppCompatActivity() {
         }
     }
 
+    // ★追加: 投稿者の情報をFirestoreから取得
+    private fun loadAuthorInfo(authorId: String) {
+        if (authorId.isEmpty()) return
+
+        FirebaseFirestore.getInstance().collection("users").document(authorId)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document.exists()) {
+                    val name = document.getString("username") ?: "名称未設定"
+                    val photoUrl = document.getString("photoUrl")
+
+                    textAuthorName.text = name
+                    if (!photoUrl.isNullOrEmpty()) {
+                        Glide.with(this)
+                            .load(photoUrl)
+                            .circleCrop()
+                            .into(imageAuthorIcon)
+                    } else {
+                        Glide.with(this)
+                            .load(R.drawable.outline_account_circle_24)
+                            .circleCrop()
+                            .into(imageAuthorIcon)
+                    }
+                } else {
+                    textAuthorName.text = "不明なユーザー"
+                }
+            }
+            .addOnFailureListener {
+                textAuthorName.text = "読み込みエラー"
+            }
+    }
+
     override fun onResume() {
         super.onResume()
-        // 編集権限がある（＝自分の記録）場合のみ再読み込みを試みる
-        // 他人の記録なら再読み込みは一旦スキップ（またはパスを調整する必要がある）
-        // ここでは簡単のため、自分が所有者の場合のみ再取得ロジックを走らせる
         val currentUser = FirebaseAuth.getInstance().currentUser
         if (currentUser != null && userId != null && currentUser.uid == userId) {
             fetchLatestData()
