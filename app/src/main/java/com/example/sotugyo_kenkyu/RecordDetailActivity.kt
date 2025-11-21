@@ -1,8 +1,9 @@
 package com.example.sotugyo_kenkyu
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import android.widget.ImageButton // Button -> ImageButtonに変更
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.RatingBar
 import android.widget.TextView
@@ -24,42 +25,43 @@ import java.util.Locale
 class RecordDetailActivity : AppCompatActivity() {
 
     private var recordId: String? = null
-    private var userId: String? = null
+    private var userId: String? = null // 記録を作成したユーザーのID
+
+    private lateinit var textHeaderTitle: TextView
+    private lateinit var imageFood: ImageView
+    private lateinit var textMenuName: TextView
+    private lateinit var switchPublic: MaterialSwitch
+    private lateinit var ratingBar: RatingBar
+    private lateinit var textDate: TextView
+    private lateinit var textTime: TextView
+    private lateinit var textMemo: TextView
+
+    private var currentRecord: Record? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_record_detail)
 
-        // Intentからデータを受け取る
         recordId = intent.getStringExtra("RECORD_ID")
         userId = intent.getStringExtra("USER_ID")
-        val menuName = intent.getStringExtra("MENU_NAME")
-        val memo = intent.getStringExtra("MEMO")
-        val imageUrl = intent.getStringExtra("IMAGE_URL")
-        val isPublic = intent.getBooleanExtra("IS_PUBLIC", false)
-        val rating = intent.getFloatExtra("RATING", 0f)
-        val timestamp = intent.getLongExtra("DATE_TIMESTAMP", 0)
 
-        // UI取得
         val header = findViewById<View>(R.id.header)
         val buttonBack = findViewById<ImageButton>(R.id.buttonBack)
-        val textHeaderTitle = findViewById<TextView>(R.id.textHeaderTitle)
+        textHeaderTitle = findViewById(R.id.textHeaderTitle)
 
-        val imageFood = findViewById<ImageView>(R.id.imageFood)
-        val textMenuName = findViewById<TextView>(R.id.textMenuName)
-        val switchPublic = findViewById<MaterialSwitch>(R.id.switchPublic)
-        val ratingBar = findViewById<RatingBar>(R.id.ratingBar)
+        imageFood = findViewById(R.id.imageFood)
+        textMenuName = findViewById(R.id.textMenuName)
+        switchPublic = findViewById(R.id.switchPublic)
+        ratingBar = findViewById(R.id.ratingBar)
 
-        val textDate = findViewById<TextView>(R.id.textDate) // ★追加
-        val textTime = findViewById<TextView>(R.id.textTime)
-        val textMemo = findViewById<TextView>(R.id.textMemo)
+        textDate = findViewById(R.id.textDate)
+        textTime = findViewById(R.id.textTime)
+        textMemo = findViewById(R.id.textMemo)
 
-        // ★ 変更: ボタンタイプをImageButtonに
         val buttonEdit = findViewById<ImageButton>(R.id.buttonEdit)
         val buttonDelete = findViewById<ImageButton>(R.id.buttonDelete)
 
-        // WindowInsets
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
@@ -72,12 +74,111 @@ class RecordDetailActivity : AppCompatActivity() {
             insets
         }
 
-        // データをViewに反映
-        textHeaderTitle.text = "記録の詳細" // 固定タイトル
+        textHeaderTitle.text = "記録の詳細"
+        switchPublic.isClickable = false
 
+        // ★追加: 自分の記録でなければ、編集・削除ボタンを隠す
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser != null && userId != null && currentUser.uid != userId) {
+            buttonEdit.visibility = View.GONE
+            buttonDelete.visibility = View.GONE
+        }
+
+        displayInitialData()
+
+        buttonBack.setOnClickListener { finish() }
+
+        buttonEdit.setOnClickListener {
+            if (currentRecord != null) {
+                val intent = Intent(this, RecordInputActivity::class.java)
+                intent.putExtra("RECORD_ID", currentRecord!!.id)
+                intent.putExtra("MENU_NAME", currentRecord!!.menuName)
+                intent.putExtra("MEMO", currentRecord!!.memo)
+                intent.putExtra("IMAGE_URL", currentRecord!!.imageUrl)
+                intent.putExtra("IS_PUBLIC", currentRecord!!.isPublic)
+                intent.putExtra("RATING", currentRecord!!.rating)
+                if (currentRecord!!.date != null) {
+                    intent.putExtra("DATE_TIMESTAMP", currentRecord!!.date!!.toDate().time)
+                }
+                startActivity(intent)
+            }
+        }
+
+        buttonDelete.setOnClickListener {
+            showDeleteConfirmation()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 編集権限がある（＝自分の記録）場合のみ再読み込みを試みる
+        // 他人の記録なら再読み込みは一旦スキップ（またはパスを調整する必要がある）
+        // ここでは簡単のため、自分が所有者の場合のみ再取得ロジックを走らせる
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser != null && userId != null && currentUser.uid == userId) {
+            fetchLatestData()
+        }
+    }
+
+    private fun displayInitialData() {
+        val menuName = intent.getStringExtra("MENU_NAME") ?: ""
+        val memo = intent.getStringExtra("MEMO") ?: ""
+        val imageUrl = intent.getStringExtra("IMAGE_URL") ?: ""
+        val isPublic = intent.getBooleanExtra("IS_PUBLIC", false)
+        val rating = intent.getFloatExtra("RATING", 0f)
+        val timestamp = intent.getLongExtra("DATE_TIMESTAMP", 0)
+
+        currentRecord = Record(
+            id = recordId ?: "",
+            userId = userId ?: "",
+            menuName = menuName,
+            memo = memo,
+            imageUrl = imageUrl,
+            isPublic = isPublic,
+            rating = rating
+        )
+        updateUI(menuName, memo, isPublic, rating, timestamp, imageUrl)
+    }
+
+    private fun fetchLatestData() {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val rId = recordId ?: return
+        val db = FirebaseFirestore.getInstance()
+
+        db.collection("users").document(uid)
+            .collection("my_records").document(rId)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document.exists()) {
+                    val record = document.toObject(Record::class.java)
+                    if (record != null) {
+                        currentRecord = record
+                        val timestamp = record.date?.toDate()?.time ?: 0L
+                        updateUI(
+                            record.menuName,
+                            record.memo,
+                            record.isPublic,
+                            record.rating,
+                            timestamp,
+                            record.imageUrl
+                        )
+                    }
+                }
+            }
+    }
+
+    private fun updateUI(
+        menuName: String,
+        memo: String,
+        isPublic: Boolean,
+        rating: Float,
+        timestamp: Long,
+        imageUrl: String
+    ) {
         textMenuName.text = menuName
         textMemo.text = memo
         switchPublic.isChecked = isPublic
+        switchPublic.text = if (isPublic) "公開中" else "非公開"
         ratingBar.rating = rating
 
         if (timestamp > 0) {
@@ -89,22 +190,10 @@ class RecordDetailActivity : AppCompatActivity() {
             textTime.text = ""
         }
 
-        if (!imageUrl.isNullOrEmpty()) {
+        if (imageUrl.isNotEmpty()) {
             Glide.with(this).load(imageUrl).centerCrop().into(imageFood)
         } else {
             Glide.with(this).load(R.drawable.background_with_logo).centerCrop().into(imageFood)
-        }
-
-        // クリックリスナー
-        buttonBack.setOnClickListener { finish() }
-
-        buttonEdit.setOnClickListener {
-            Toast.makeText(this, "編集機能は未実装です", Toast.LENGTH_SHORT).show()
-            // TODO: RecordInputActivityにデータを渡して編集モードで開く
-        }
-
-        buttonDelete.setOnClickListener {
-            showDeleteConfirmation()
         }
     }
 

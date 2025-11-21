@@ -1,6 +1,7 @@
 package com.example.sotugyo_kenkyu
 
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.PropertyName // ★追加
 
 data class Record(
     var id: String = "",
@@ -9,6 +10,9 @@ data class Record(
     val date: Timestamp? = null,
     val memo: String = "",
     val imageUrl: String = "",
-    val isPublic: Boolean = false,
-    val rating: Float = 0f // ★ 追加: 評価（0.0〜5.0）
+
+    // ★修正: Firestore上のフィールド名を "isPublic" に強制する
+    @get:PropertyName("isPublic") @set:PropertyName("isPublic") var isPublic: Boolean = false,
+
+    val rating: Float = 0f
 )
