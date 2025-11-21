@@ -1,6 +1,5 @@
 package com.example.sotugyo_kenkyu
 
-import android.content.Context // ★ 追加
 import android.os.Bundle
 import android.widget.ImageButton
 import android.widget.Toast
@@ -10,8 +9,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.firebase.auth.FirebaseAuth // ★追加
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.SetOptions // ★追加
 
 class AdminChatActivity : AppCompatActivity() {
 
@@ -32,7 +33,7 @@ class AdminChatActivity : AppCompatActivity() {
         backButton.setOnClickListener { finish() }
 
         val layoutManager = LinearLayoutManager(this)
-        // layoutManager.stackFromEnd = true // 必要ならコメントアウト解除
+        // layoutManager.stackFromEnd = true
         recyclerView.layoutManager = layoutManager
 
         val db = FirebaseFirestore.getInstance()
@@ -48,7 +49,7 @@ class AdminChatActivity : AppCompatActivity() {
                 if (list.isNotEmpty()) {
                     recyclerView.scrollToPosition(list.size - 1)
 
-                    // ★★★ 追加: 最新のお知らせの日付を「既読」として保存 ★★★
+                    // ★ 修正: Firestoreに既読日時を保存
                     markAsRead(list.last())
                 }
             }
@@ -57,18 +58,20 @@ class AdminChatActivity : AppCompatActivity() {
             }
     }
 
-    // ★★★ 追加: 既読処理 ★★★
+    // ★★★ 修正: Firestoreに保存するメソッド ★★★
     private fun markAsRead(latestNotification: Notification) {
-        val date = latestNotification.date
-        if (date != null) {
-            val prefs = getSharedPreferences("prefs_notification", Context.MODE_PRIVATE)
-            val currentSaved = prefs.getLong("last_seen_timestamp", 0L)
-            val latestTime = date.toDate().time
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        val date = latestNotification.date ?: return
 
-            // 今保存されている日付より新しい場合のみ更新
-            if (latestTime > currentSaved) {
-                prefs.edit().putLong("last_seen_timestamp", latestTime).apply()
+        val db = FirebaseFirestore.getInstance()
+
+        // "users/{uid}" ドキュメントに "lastSeenNotificationDate" フィールドを保存/更新
+        val data = hashMapOf("lastSeenNotificationDate" to date)
+
+        db.collection("users").document(user.uid)
+            .set(data, SetOptions.merge()) // 他のデータ（名前など）を消さないようにmerge
+            .addOnFailureListener {
+                // 失敗しても静かに無視するかログ出す程度でOK
             }
-        }
     }
 }

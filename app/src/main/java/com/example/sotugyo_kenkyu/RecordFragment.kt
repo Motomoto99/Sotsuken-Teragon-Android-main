@@ -39,6 +39,7 @@ class RecordFragment : Fragment() {
 
         val header = view.findViewById<View>(R.id.header)
 
+        // ヘッダーのパディング調整
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
@@ -49,11 +50,12 @@ class RecordFragment : Fragment() {
         recyclerView = view.findViewById(R.id.recyclerViewRecord)
         val fabAdd = view.findViewById<FloatingActionButton>(R.id.fabAddRecord)
 
-        // 2列グリッド
+        // 2列のグリッド表示
         recyclerView.layoutManager = GridLayoutManager(requireContext(), 2)
         recordAdapter = RecordAdapter(recordList)
         recyclerView.adapter = recordAdapter
 
+        // ＋ボタンを押したら記録入力画面へ遷移
         fabAdd.setOnClickListener {
             val intent = Intent(requireContext(), RecordInputActivity::class.java)
             startActivity(intent)
@@ -63,7 +65,7 @@ class RecordFragment : Fragment() {
         loadRecords()
     }
 
-    // 画面に戻ってきたときも更新（追加したデータ反映のため）
+    // 画面に戻ってきたときも更新（追加・削除したデータを反映するため）
     override fun onResume() {
         super.onResume()
         loadRecords()
@@ -129,6 +131,26 @@ class RecordAdapter(private val items: List<Record>) :
                 .load(R.drawable.background_with_logo) // デフォルト画像
                 .centerCrop()
                 .into(holder.imageFood)
+        }
+
+        // ★ クリックしたら詳細画面へ遷移
+        holder.itemView.setOnClickListener {
+            val context = holder.itemView.context
+            val intent = Intent(context, RecordDetailActivity::class.java)
+
+            // 詳細画面に必要なデータを渡す
+            intent.putExtra("RECORD_ID", item.id)
+            intent.putExtra("USER_ID", item.userId)
+            intent.putExtra("MENU_NAME", item.menuName)
+            intent.putExtra("MEMO", item.memo)
+            intent.putExtra("IMAGE_URL", item.imageUrl)
+            intent.putExtra("IS_PUBLIC", item.isPublic)
+            intent.putExtra("RATING", item.rating)
+            if (item.date != null) {
+                intent.putExtra("DATE_TIMESTAMP", item.date.toDate().time)
+            }
+
+            context.startActivity(intent)
         }
     }
 
