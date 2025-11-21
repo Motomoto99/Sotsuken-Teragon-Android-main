@@ -1,6 +1,5 @@
 package com.example.sotugyo_kenkyu
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -12,6 +11,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding // ★ 追加
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.google.firebase.auth.FirebaseAuth // ★ 追加
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import java.text.SimpleDateFormat
@@ -29,6 +29,7 @@ class NotificationActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_notification)
 
+        // Viewの取得
         textLatestMessage = findViewById(R.id.textLatestMessage)
         textUnreadCount = findViewById(R.id.textUnreadCount)
         textTime = findViewById(R.id.textTime)
@@ -36,9 +37,9 @@ class NotificationActivity : AppCompatActivity() {
 
         val backButton = findViewById<ImageButton>(R.id.buttonBack)
         val buttonAdminChat = findViewById<View>(R.id.buttonAdminChat)
-        val header = findViewById<View>(R.id.header) // ★ 追加
+        val header = findViewById<View>(R.id.header)
 
-        // ★★★ WindowInsets設定 (ヘッダーにパディング適用) ★★★
+        // WindowInsets設定 (ヘッダーにパディング適用)
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
@@ -52,7 +53,6 @@ class NotificationActivity : AppCompatActivity() {
             insets
         }
 
-        // --- 以下、変更なし ---
         backButton.setOnClickListener { finish() }
 
         buttonAdminChat.setOnClickListener {
@@ -111,29 +111,46 @@ class NotificationActivity : AppCompatActivity() {
             }
     }
 
+    // ★★★ 修正: Firestoreから既読日時を取得して計算 ★★★
     private fun updateUnreadCount(onComplete: () -> Unit = {}) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null) {
+            onComplete()
+            return
+        }
+
         val db = FirebaseFirestore.getInstance()
-        val prefs = getSharedPreferences("prefs_notification", Context.MODE_PRIVATE)
-        val lastSeenTime = prefs.getLong("last_seen_timestamp", 0L)
 
-        db.collection("notifications").get()
-            .addOnSuccessListener { result ->
-                var unreadCount = 0
-                for (document in result) {
-                    val notification = document.toObject(Notification::class.java)
-                    val date = notification.date
-                    if (date != null && date.toDate().time > lastSeenTime) {
-                        unreadCount++
+        // 1. ユーザーの既読日時を取得
+        db.collection("users").document(user.uid).get()
+            .addOnSuccessListener { userDoc ->
+                val lastSeenTimestamp = userDoc.getTimestamp("lastSeenNotificationDate")
+                val threshold = lastSeenTimestamp?.toDate()?.time ?: 0L
+
+                // 2. 通知一覧を取得してカウント
+                db.collection("notifications").get()
+                    .addOnSuccessListener { result ->
+                        var unreadCount = 0
+                        for (document in result) {
+                            val notification = document.toObject(Notification::class.java)
+                            val date = notification.date
+                            if (date != null && date.toDate().time > threshold) {
+                                unreadCount++
+                            }
+                        }
+
+                        if (unreadCount > 0) {
+                            textUnreadCount.text = if (unreadCount > 99) "99+" else unreadCount.toString()
+                            textUnreadCount.visibility = View.VISIBLE
+                        } else {
+                            textUnreadCount.visibility = View.GONE
+                        }
+                        onComplete()
                     }
-                }
-
-                if (unreadCount > 0) {
-                    textUnreadCount.text = if (unreadCount > 99) "99+" else unreadCount.toString()
-                    textUnreadCount.visibility = View.VISIBLE
-                } else {
-                    textUnreadCount.visibility = View.GONE
-                }
-                onComplete()
+                    .addOnFailureListener {
+                        textUnreadCount.visibility = View.GONE
+                        onComplete()
+                    }
             }
             .addOnFailureListener {
                 textUnreadCount.visibility = View.GONE

@@ -3,6 +3,9 @@ package com.example.sotugyo_kenkyu
 import com.google.firebase.FirebaseApp
 import com.google.firebase.ai.Chat
 import com.google.firebase.ai.FirebaseAI
+import com.google.firebase.auth.FirebaseAuth // ★追加
+import com.google.firebase.firestore.FirebaseFirestore // ★追加
+import kotlinx.coroutines.tasks.await // ★追加
 
 /**
  * ログイン中の AI チャットセッションをアプリ全体で 1 つ管理するためのシングルトン。
@@ -35,11 +38,49 @@ object AiChatSessionManager {
     private suspend fun buildInitialPrompt(): String {
         // Firestore などから長文プロンプトを取得（あなたが作った PromptRepository）
         val systemPrompt = PromptRepository.getSystemPrompt()
+
+        // ★追加: ユーザーのアレルギー情報を取得してプロンプトに組み込む
+        val allergyInfo = getUserAllergiesPrompt()
+
         return """
 $systemPrompt
 
+$allergyInfo
+
 以上の方針に従って、今後のチャットに回答してください。
 """.trimIndent()
+    }
+
+    // ★追加: Firestoreからアレルギー情報を取得し、AIへの指示文を作成する
+    private suspend fun getUserAllergiesPrompt(): String {
+        val user = FirebaseAuth.getInstance().currentUser ?: return ""
+
+        return try {
+            val snapshot = FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(user.uid)
+                .get()
+                .await()
+
+            // AllergySettingsActivityで保存したフィールド名 "allergies" を取得
+            val allergies = snapshot.get("allergies") as? List<String> ?: emptyList()
+
+            if (allergies.isNotEmpty()) {
+                """
+                【重要：ユーザーのアレルギー情報】
+                このユーザーは以下の食材に対してアレルギーを持っています。
+                レシピの提案や食材の確認を行う際は、以下の食材が含まれないように細心の注意を払ってください。
+                代替食材の提案が必要な場合は、アレルギー食材を含まないものを提案してください。
+                
+                対象アレルギー食材: ${allergies.joinToString("、")}
+                """.trimIndent()
+            } else {
+                ""
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            "" // エラー時はアレルギー情報なしとして続行
+        }
     }
 
     private suspend fun createChatWithPrompt(): Chat {
@@ -54,6 +95,7 @@ $systemPrompt
     }
 
     // ---------------- セッション操作 ----------------
+    // (以下変更なし)
 
     /**
      * まだ Chat がなければ新規作成して返す。
