@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.snackbar.Snackbar // ★追加
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CoroutineScope
@@ -160,6 +161,16 @@ class RecipeListFragment : Fragment() {
             // ONになった -> Firestoreに保存
             // レシピデータをそのままコピーして保存しておくと、一覧表示が速い
             favoriteRef.set(recipe)
+                .addOnSuccessListener {
+                    // ★成功したらスナックバーを出して、そこからフォルダ選択へ誘導
+                    Snackbar.make(recyclerView, "お気に入りに追加しました", Snackbar.LENGTH_LONG)
+                        .setAction("フォルダへ") {
+                            // 「フォルダへ」が押されたらボトムシートを表示
+                            val bottomSheet = AddToFolderBottomSheet(recipe)
+                            bottomSheet.show(parentFragmentManager, "AddToFolder")
+                        }
+                        .show()
+                }
                 .addOnFailureListener { e ->
                     Log.e("Fav", "保存失敗", e)
                 }
