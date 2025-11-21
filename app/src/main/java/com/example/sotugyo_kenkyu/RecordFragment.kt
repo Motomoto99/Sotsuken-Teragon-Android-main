@@ -1,13 +1,12 @@
 package com.example.sotugyo_kenkyu
 
-import android.content.Intent // ★追加
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -16,8 +15,17 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 class RecordFragment : Fragment() {
+
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var recordAdapter: RecordAdapter
+    private val recordList = mutableListOf<Record>()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -31,7 +39,6 @@ class RecordFragment : Fragment() {
 
         val header = view.findViewById<View>(R.id.header)
 
-        // ヘッダーのパディング調整
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
@@ -39,41 +46,50 @@ class RecordFragment : Fragment() {
             insets
         }
 
-        val recyclerView = view.findViewById<RecyclerView>(R.id.recyclerViewRecord)
+        recyclerView = view.findViewById(R.id.recyclerViewRecord)
         val fabAdd = view.findViewById<FloatingActionButton>(R.id.fabAddRecord)
 
-        // 2列のグリッド表示
+        // 2列グリッド
         recyclerView.layoutManager = GridLayoutManager(requireContext(), 2)
+        recordAdapter = RecordAdapter(recordList)
+        recyclerView.adapter = recordAdapter
 
-        // ダミーデータ
-        val dummyData = listOf(
-            RecordItem("08:00", "トーストセット", null),
-            RecordItem("12:30", "トマトパスタ", "https://example.com/pasta.jpg"),
-            RecordItem("15:00", "パンケーキ", null),
-            RecordItem("19:00", "ハンバーグ定食", null),
-            RecordItem("21:00", "プロテイン", null)
-        )
-
-        recyclerView.adapter = RecordAdapter(dummyData)
-
-        // ★★★ ここを修正しました ★★★
-        // ＋ボタンを押したら記録入力画面へ遷移
         fabAdd.setOnClickListener {
             val intent = Intent(requireContext(), RecordInputActivity::class.java)
             startActivity(intent)
         }
+
+        // 初回データ読み込み
+        loadRecords()
+    }
+
+    // 画面に戻ってきたときも更新（追加したデータ反映のため）
+    override fun onResume() {
+        super.onResume()
+        loadRecords()
+    }
+
+    private fun loadRecords() {
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        val db = FirebaseFirestore.getInstance()
+
+        // 日付の新しい順に取得
+        db.collection("users").document(user.uid).collection("my_records")
+            .orderBy("date", Query.Direction.DESCENDING)
+            .get()
+            .addOnSuccessListener { result ->
+                recordList.clear()
+                for (document in result) {
+                    val record = document.toObject(Record::class.java)
+                    recordList.add(record)
+                }
+                recordAdapter.notifyDataSetChanged()
+            }
     }
 }
 
-// --- 以下、データクラスとアダプター（変更なし） ---
-
-data class RecordItem(
-    val time: String,
-    val foodName: String,
-    val imageUrl: String?
-)
-
-class RecordAdapter(private val items: List<RecordItem>) :
+// --- アダプター ---
+class RecordAdapter(private val items: List<Record>) :
     RecyclerView.Adapter<RecordAdapter.RecordViewHolder>() {
 
     class RecordViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -90,18 +106,27 @@ class RecordAdapter(private val items: List<RecordItem>) :
 
     override fun onBindViewHolder(holder: RecordViewHolder, position: Int) {
         val item = items[position]
-        holder.textTime.text = item.time
-        holder.textFoodName.text = item.foodName
 
-        // 画像の表示 (URLがなければデフォルト画像)
-        if (item.imageUrl != null) {
+        holder.textFoodName.text = item.menuName
+
+        // 日付・時間をフォーマット (例: 11/20 12:00)
+        if (item.date != null) {
+            val sdf = SimpleDateFormat("MM/dd HH:mm", Locale.JAPAN)
+            holder.textTime.text = sdf.format(item.date.toDate())
+        } else {
+            holder.textTime.text = ""
+        }
+
+        // 画像表示
+        if (item.imageUrl.isNotEmpty()) {
             Glide.with(holder.itemView.context)
                 .load(item.imageUrl)
                 .centerCrop()
                 .into(holder.imageFood)
         } else {
+            // 画像がない場合
             Glide.with(holder.itemView.context)
-                .load(R.drawable.background_with_logo)
+                .load(R.drawable.background_with_logo) // デフォルト画像
                 .centerCrop()
                 .into(holder.imageFood)
         }

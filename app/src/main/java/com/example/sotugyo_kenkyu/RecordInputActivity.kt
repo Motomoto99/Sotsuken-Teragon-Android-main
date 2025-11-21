@@ -1,19 +1,51 @@
 package com.example.sotugyo_kenkyu
 
 import android.app.DatePickerDialog
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import android.widget.EditText
+import android.widget.ImageView
+import android.widget.RatingBar // ★ 追加
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import com.bumptech.glide.Glide
+import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
 import java.util.Calendar
 import java.util.Locale
+import java.util.UUID
 
 class RecordInputActivity : AppCompatActivity() {
+
+    private lateinit var imagePhoto: ImageView
+    private var selectedImageUri: Uri? = null
+
+    private val calendar = Calendar.getInstance()
+
+    private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            selectedImageUri = uri
+            Glide.with(this)
+                .load(uri)
+                .centerCrop()
+                .into(imagePhoto)
+
+            findViewById<View>(R.id.layoutPhotoPlaceholder).visibility = View.GONE
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,9 +60,13 @@ class RecordInputActivity : AppCompatActivity() {
         val containerDate = findViewById<View>(R.id.containerDate)
 
         val cardPhoto = findViewById<View>(R.id.cardPhoto)
+        imagePhoto = findViewById(R.id.imagePhoto)
+
+        val inputMenuName = findViewById<EditText>(R.id.inputMenuName)
+        val inputMemo = findViewById<EditText>(R.id.inputMemo)
+        val switchPublic = findViewById<MaterialSwitch>(R.id.switchPublic)
         val containerRecipe = findViewById<View>(R.id.containerRecipe)
 
-        // WindowInsets
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val originalPaddingTop = (12 * resources.displayMetrics.density).toInt()
@@ -43,28 +79,20 @@ class RecordInputActivity : AppCompatActivity() {
             insets
         }
 
-        // 初期値セット
-        val calendar = Calendar.getInstance()
-        updateDateText(textDate, calendar)
+        updateDateText(textDate)
 
         buttonCancel.setOnClickListener { finish() }
 
-        buttonSave.setOnClickListener {
-            Toast.makeText(this, "記録を保存しました", Toast.LENGTH_SHORT).show()
-            finish()
-        }
-
         cardPhoto.setOnClickListener {
-            Toast.makeText(this, "写真を追加", Toast.LENGTH_SHORT).show()
+            pickImageLauncher.launch("image/*")
         }
 
-        // 日付変更
         containerDate.setOnClickListener {
             DatePickerDialog(
                 this,
                 { _, year, month, day ->
                     calendar.set(year, month, day)
-                    updateDateText(textDate, calendar)
+                    updateDateText(textDate)
                 },
                 calendar.get(Calendar.YEAR),
                 calendar.get(Calendar.MONTH),
@@ -72,16 +100,117 @@ class RecordInputActivity : AppCompatActivity() {
             ).show()
         }
 
-        // レシピ選択
         containerRecipe.setOnClickListener {
-            Toast.makeText(this, "レシピ選択画面を開く(未実装)", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "レシピ選択は未実装です", Toast.LENGTH_SHORT).show()
+        }
+
+        buttonSave.setOnClickListener {
+            val menuName = inputMenuName.text.toString().trim()
+
+            if (menuName.isEmpty()) {
+                Toast.makeText(this, "料理名を入力してください", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            if (selectedImageUri == null) {
+                Toast.makeText(this, "写真を追加してください", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val user = FirebaseAuth.getInstance().currentUser
+            if (user == null) {
+                finish()
+                return@setOnClickListener
+            }
+
+            buttonSave.isEnabled = false
+            Toast.makeText(this, "保存中...", Toast.LENGTH_SHORT).show()
+
+            uploadImageAndSave(user.uid, menuName, inputMemo.text.toString(), switchPublic.isChecked)
         }
     }
 
-    private fun updateDateText(view: TextView, cal: Calendar) {
-        val year = cal.get(Calendar.YEAR)
-        val month = cal.get(Calendar.MONTH) + 1
-        val day = cal.get(Calendar.DAY_OF_MONTH)
+    private fun updateDateText(view: TextView) {
+        val year = calendar.get(Calendar.YEAR)
+        val month = calendar.get(Calendar.MONTH) + 1
+        val day = calendar.get(Calendar.DAY_OF_MONTH)
         view.text = String.format(Locale.getDefault(), "%d/%02d/%02d", year, month, day)
+    }
+
+    private fun uploadImageAndSave(uid: String, menuName: String, memo: String, isPublic: Boolean) {
+        val storageRef = FirebaseStorage.getInstance().reference
+        val filename = UUID.randomUUID().toString()
+        val imageRef = storageRef.child("records/$uid/$filename.jpg")
+
+        imageRef.putFile(selectedImageUri!!)
+            .addOnSuccessListener {
+                imageRef.downloadUrl.addOnSuccessListener { uri ->
+                    saveRecordToFirestore(uid, menuName, memo, isPublic, uri.toString())
+                }
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "画像のアップロードに失敗しました", Toast.LENGTH_SHORT).show()
+                findViewById<View>(R.id.buttonSave).isEnabled = true
+            }
+    }
+
+    private fun saveRecordToFirestore(uid: String, menuName: String, memo: String, isPublic: Boolean, imageUrl: String) {
+        val db = FirebaseFirestore.getInstance()
+
+        val newRecord = Record(
+            userId = uid,
+            menuName = menuName,
+            date = Timestamp(calendar.time),
+            memo = memo,
+            imageUrl = imageUrl,
+            isPublic = isPublic,
+            rating = 0f // 初期値は0
+        )
+
+        db.collection("users").document(uid).collection("my_records")
+            .add(newRecord)
+            .addOnSuccessListener { documentReference ->
+                // IDを更新
+                documentReference.update("id", documentReference.id)
+
+                // ★★★ 変更: 保存成功後に評価ダイアログを表示 (ドキュメントIDを渡す) ★★★
+                showSuccessDialog(uid, documentReference.id)
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "保存失敗: ${e.message}", Toast.LENGTH_SHORT).show()
+                findViewById<View>(R.id.buttonSave).isEnabled = true
+            }
+    }
+
+    // ★★★ 評価ダイアログ表示と更新処理 ★★★
+    private fun showSuccessDialog(uid: String, recordId: String) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_record_success, null)
+        val ratingBar = dialogView.findViewById<RatingBar>(R.id.ratingBar)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        // 「完了」ボタン
+        dialogView.findViewById<View>(R.id.buttonCloseDialog).setOnClickListener {
+            // 評価値を取得
+            val rating = ratingBar.rating
+
+            // Firestoreのデータを更新して評価を保存
+            if (rating > 0) {
+                FirebaseFirestore.getInstance()
+                    .collection("users").document(uid)
+                    .collection("my_records").document(recordId)
+                    .update("rating", rating)
+            }
+
+            dialog.dismiss()
+            finish() // 画面を閉じる
+        }
+
+        dialog.show()
     }
 }
