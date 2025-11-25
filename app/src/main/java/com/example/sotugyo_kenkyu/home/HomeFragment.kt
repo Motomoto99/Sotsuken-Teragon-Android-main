@@ -1,5 +1,6 @@
 package com.example.sotugyo_kenkyu.home
 
+import com.example.sotugyo_kenkyu.recipe.Recipe
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -9,6 +10,7 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
@@ -22,6 +24,7 @@ import com.example.sotugyo_kenkyu.notification.Notification
 import com.example.sotugyo_kenkyu.notification.NotificationActivity
 import com.example.sotugyo_kenkyu.record.PublicRecordsFragment
 import com.example.sotugyo_kenkyu.R
+import com.example.sotugyo_kenkyu.recipe.RecipeDetailFragment
 import com.example.sotugyo_kenkyu.record.Record
 import com.example.sotugyo_kenkyu.record.RecordDetailActivity
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -95,6 +98,7 @@ class HomeFragment : Fragment() {
 
         loadUserIcon()
         loadNotificationIcon()
+        recommend_recipe()
     }
 
     override fun onStart() {
@@ -341,5 +345,62 @@ class HomeFragment : Fragment() {
         } else {
             badge.visibility = View.GONE
         }
+    }
+
+    private fun recommend_recipe() {
+        val view = view ?: return
+        val recommend_image: ImageView = view.findViewById(R.id.imageRecommended)
+        val recommend_text: TextView = view.findViewById(R.id.textRecommendedTitle)
+
+        val db = FirebaseFirestore.getInstance()
+        db.collection("recommend") // recommendコレクションを参照
+            .get()
+            .addOnSuccessListener { queryDocumentSnapshots ->
+                // ドキュメントが空でないかチェック
+                if (!queryDocumentSnapshots.isEmpty) {
+                    val size = queryDocumentSnapshots.size()
+                    // 0 から size-1 の範囲でランダムなインデックスを生成
+                    val randomIndex = (0 until size).random()
+                    val doc = queryDocumentSnapshots.documents[randomIndex]
+
+                    // ★重要: ドキュメントをRecipeクラスのオブジェクトに変換
+                    val recipe = doc.toObject(Recipe::class.java)
+
+                    if (recipe != null) {
+                        // ドキュメントIDをセット（詳細画面でのお気に入り登録などで使うため）
+                        recipe.id = doc.id
+
+                        // UIへの表示
+                        recommend_text.text = recipe.recipeTitle
+                        if (recipe.foodImageUrl.isNotEmpty()) {
+                            Glide.with(this)
+                                .load(recipe.foodImageUrl)
+                                .into(recommend_image)
+                        } else {
+                            recommend_image.setImageResource(R.drawable.funa_smile)
+                        }
+
+                        // ★クリックリスナーの実装（データ取得後にセットする）
+                        recommend_image.setOnClickListener {
+                            // 詳細画面のフラグメントを作成
+                            val fragment = RecipeDetailFragment()
+
+                            // データを渡すためのBundleを作成
+                            val args = Bundle()
+                            args.putSerializable("RECIPE_DATA", recipe)
+                            fragment.arguments = args
+
+                            // 画面遷移を実行
+                            parentFragmentManager.beginTransaction()
+                                .replace(R.id.fragment_container, fragment)
+                                .addToBackStack(null) // 戻るボタンで戻れるように履歴に追加
+                                .commit()
+                        }
+                    }
+                }
+            }
+            .addOnFailureListener {
+                Toast.makeText(requireContext(), "データ取得に失敗しました", Toast.LENGTH_SHORT).show()
+            }
     }
 }
