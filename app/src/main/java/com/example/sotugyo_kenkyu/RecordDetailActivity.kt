@@ -138,7 +138,7 @@ class RecordDetailActivity : AppCompatActivity() {
         }
     }
 
-    // ★★★ いいね切り替え処理 ★★★
+    // ★★★ いいね切り替え処理（通知重複防止版） ★★★
     private fun toggleLike(myUid: String) {
         if (myUid.isEmpty() || recordId == null || userId == null) return
 
@@ -149,7 +149,7 @@ class RecordDetailActivity : AppCompatActivity() {
         val isLiked = currentLikedUserIds.contains(myUid)
 
         if (isLiked) {
-            // いいね解除
+            // いいね解除（通知リストは変更しない＝一度送ったら送り直さない）
             currentLikedUserIds.remove(myUid)
             updateLikeUI(myUid)
             docRef.update("likedUserIds", FieldValue.arrayRemove(myUid))
@@ -157,10 +157,24 @@ class RecordDetailActivity : AppCompatActivity() {
             // いいね追加
             currentLikedUserIds.add(myUid)
             updateLikeUI(myUid)
+
             docRef.update("likedUserIds", FieldValue.arrayUnion(myUid))
                 .addOnSuccessListener {
-                    // ★追加成功時に通知を送信
-                    sendLikeNotification(myUid)
+                    // ★修正: まだ通知していない場合のみ通知を送る
+                    val alreadyNotified = currentRecord?.notifiedUserIds?.contains(myUid) == true
+
+                    if (!alreadyNotified) {
+                        sendLikeNotification(myUid)
+
+                        // 通知済みリストに追加して、二度と送らないようにする
+                        docRef.update("notifiedUserIds", FieldValue.arrayUnion(myUid))
+
+                        // ローカルデータも更新（連打防止のため）
+                        currentRecord?.let {
+                            val newNotified = it.notifiedUserIds.toMutableList().apply { add(myUid) }
+                            currentRecord = it.copy(notifiedUserIds = newNotified)
+                        }
+                    }
                 }
         }
     }
