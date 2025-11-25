@@ -114,6 +114,10 @@ class RecordDetailActivity : AppCompatActivity() {
                 if (currentRecord!!.date != null) {
                     intent.putExtra("DATE_TIMESTAMP", currentRecord!!.date!!.toDate().time)
                 }
+                // ★追加: 公開日時も渡す
+                if (currentRecord!!.postedAt != null) {
+                    intent.putExtra("POSTED_TIMESTAMP", currentRecord!!.postedAt!!.toDate().time)
+                }
                 startActivity(intent)
             }
         }

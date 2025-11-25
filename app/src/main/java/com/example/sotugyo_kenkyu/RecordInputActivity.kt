@@ -42,6 +42,7 @@ class RecordInputActivity : AppCompatActivity() {
     private var editRecordId: String? = null
     private var originalImageUrl: String = ""
     private var currentRating: Float = 0f
+    private var originalPostedAt: Timestamp? = null // ★追加: 既存の公開日時
 
     private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
@@ -201,6 +202,12 @@ class RecordInputActivity : AppCompatActivity() {
             editRecordId = id
             originalImageUrl = intent.getStringExtra("IMAGE_URL") ?: ""
             currentRating = intent.getFloatExtra("RATING", 0f)
+
+            // ★追加: 既存の公開日時を受け取る
+            val postedTime = intent.getLongExtra("POSTED_TIMESTAMP", 0)
+            if (postedTime > 0) {
+                originalPostedAt = Timestamp(Date(postedTime))
+            }
         }
     }
 
@@ -247,23 +254,35 @@ class RecordInputActivity : AppCompatActivity() {
         val db = FirebaseFirestore.getInstance()
         val userRecordsRef = db.collection("users").document(uid).collection("my_records")
 
-        // ★追加: 元の公開状態を取得（Intentから）
         val originalIsPublic = intent.getBooleanExtra("IS_PUBLIC", false)
 
-        // ★追加: 日付決定ロジック
-        // 「編集モード」かつ「非公開→公開」への変更時のみ、日付を現在時刻に更新する
-        // それ以外（新規作成、公開→公開の修正など）は、画面で設定されている日付（calendar.time）を使用する
-        val dateToSave = if (isEditMode && !originalIsPublic && isPublic) {
-            Timestamp.now()
+        // ★修正: 日付（date）は常にカレンダーで指定した日を使う
+        val recordDate = Timestamp(calendar.time)
+
+        // ★追加: 公開日時（postedAt）の決定ロジック
+        val postedAtDate = if (isPublic) {
+            if (!isEditMode) {
+                // 新規作成で「公開」なら、現在時刻
+                Timestamp.now()
+            } else if (!originalIsPublic) {
+                // 編集で「非公開→公開」になったら、現在時刻（これで新着に上がる！）
+                Timestamp.now()
+            } else {
+                // 「公開→公開」のままなら、以前の公開日を維持（順序を変えない）
+                // ※古いデータでpostedAtがない場合は、recordDateで代用
+                originalPostedAt ?: recordDate
+            }
         } else {
-            Timestamp(calendar.time)
+            // 非公開にするなら null
+            null
         }
 
         if (isEditMode && editRecordId != null) {
             // ★ 更新処理
             val updateData = hashMapOf<String, Any>(
                 "menuName" to menuName,
-                "date" to dateToSave, // ★ここを修正した変数に変更
+                "date" to recordDate,        // 記録日
+                "postedAt" to (postedAtDate as Any), // ★みんなの投稿用日時
                 "memo" to memo,
                 "imageUrl" to imageUrl,
                 "isPublic" to isPublic,
@@ -285,7 +304,8 @@ class RecordInputActivity : AppCompatActivity() {
             val newRecord = Record(
                 userId = uid,
                 menuName = menuName,
-                date = dateToSave, // ★ここを修正した変数に変更
+                date = recordDate,           // 記録日
+                postedAt = postedAtDate,     // ★みんなの投稿用日時
                 memo = memo,
                 imageUrl = imageUrl,
                 isPublic = isPublic,

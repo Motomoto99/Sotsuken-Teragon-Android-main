@@ -27,9 +27,12 @@ import com.google.firebase.firestore.QuerySnapshot
 
 class HomeFragment : Fragment() {
 
-    private var notificationListener: ListenerRegistration? = null
+    private var globalNotificationListener: ListenerRegistration? = null
+    private var personalNotificationListener: ListenerRegistration? = null
     private var userListener: ListenerRegistration? = null
-    private var currentSnapshots: QuerySnapshot? = null
+
+    private var globalSnapshots: QuerySnapshot? = null
+    private var personalSnapshots: QuerySnapshot? = null
     private var lastSeenDate: Timestamp? = null
 
     private var myRecordList: List<Record> = emptyList()
@@ -161,12 +164,13 @@ class HomeFragment : Fragment() {
         }
     }
 
+    // ★修正: みんなの投稿を "postedAt" 順で取得
     private fun loadEveryoneRecords() {
         val db = FirebaseFirestore.getInstance()
 
         db.collectionGroup("my_records")
             .whereEqualTo("isPublic", true)
-            .orderBy("date", Query.Direction.DESCENDING)
+            .orderBy("postedAt", Query.Direction.DESCENDING) // ★変更
             .limit(2)
             .get()
             .addOnSuccessListener { documents ->
@@ -236,25 +240,21 @@ class HomeFragment : Fragment() {
         context.startActivity(intent)
     }
 
-    // ★★★ 修正: FirestoreからアイコンURLを取得して表示する ★★★
     private fun loadUserIcon() {
         val view = view ?: return
         val userIcon: ImageButton = view.findViewById(R.id.iconUser)
         val user = FirebaseAuth.getInstance().currentUser ?: return
         val db = FirebaseFirestore.getInstance()
 
-        // まずはデフォルトアイコンを表示しておく（読み込み中のチラつき防止）
         Glide.with(this)
             .load(R.drawable.outline_account_circle_24)
             .circleCrop()
             .into(userIcon)
 
-        // Firestoreから最新情報を取得
         db.collection("users").document(user.uid).get()
             .addOnSuccessListener { document ->
                 if (document != null && document.exists()) {
                     val photoUrl = document.getString("photoUrl")
-                    // FirestoreにURLが保存されており、かつ空文字でない場合のみ読み込む
                     if (!photoUrl.isNullOrEmpty()) {
                         Glide.with(this)
                             .load(photoUrl)
@@ -262,7 +262,6 @@ class HomeFragment : Fragment() {
                             .diskCacheStrategy(DiskCacheStrategy.ALL)
                             .into(userIcon)
                     }
-                    // 空文字の場合はデフォルトのまま（初期ユーザー状態）
                 }
             }
     }
@@ -292,12 +291,23 @@ class HomeFragment : Fragment() {
                 }
         }
 
-        if (notificationListener == null) {
-            notificationListener = db.collection("notifications")
+        if (globalNotificationListener == null) {
+            globalNotificationListener = db.collection("notifications")
                 .addSnapshotListener { snapshots, e ->
-                    if (e != null) return@addSnapshotListener
-                    if (snapshots != null) {
-                        currentSnapshots = snapshots
+                    if (e == null && snapshots != null) {
+                        globalSnapshots = snapshots
+                        recalculateBadge()
+                    }
+                }
+        }
+
+        if (personalNotificationListener == null) {
+            personalNotificationListener = db.collection("users")
+                .document(user.uid)
+                .collection("notifications")
+                .addSnapshotListener { snapshots, e ->
+                    if (e == null && snapshots != null) {
+                        personalSnapshots = snapshots
                         recalculateBadge()
                     }
                 }
@@ -307,23 +317,31 @@ class HomeFragment : Fragment() {
     private fun stopListeners() {
         userListener?.remove()
         userListener = null
-        notificationListener?.remove()
-        notificationListener = null
+
+        globalNotificationListener?.remove()
+        globalNotificationListener = null
+
+        personalNotificationListener?.remove()
+        personalNotificationListener = null
     }
 
     private fun recalculateBadge() {
         val view = view ?: return
         val badge: TextView = view.findViewById(R.id.textNotificationBadge)
-        val snapshots = currentSnapshots ?: return
 
         val threshold = lastSeenDate?.toDate()?.time ?: 0L
-
         var unreadCount = 0
-        for (document in snapshots) {
-            val notification = document.toObject(Notification::class.java)
-            val date = notification.date
 
-            if (date != null && date.toDate().time > threshold) {
+        globalSnapshots?.forEach { doc ->
+            val n = doc.toObject(Notification::class.java)
+            if (n.date != null && n.date.toDate().time > threshold) {
+                unreadCount++
+            }
+        }
+
+        personalSnapshots?.forEach { doc ->
+            val n = doc.toObject(Notification::class.java)
+            if (n.date != null && n.date.toDate().time > threshold) {
                 unreadCount++
             }
         }
