@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.RatingBar
 import android.widget.TextView
 import android.widget.Toast
@@ -17,6 +18,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import com.bumptech.glide.Glide
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -27,20 +29,21 @@ class RecordDetailActivity : AppCompatActivity() {
     private var recordId: String? = null
     private var userId: String? = null
 
-    private lateinit var textHeaderTitle: TextView
-    private lateinit var imageFood: ImageView
     private lateinit var textMenuName: TextView
-
-    // ★修正: Switch ではなく TextView に変更
     private lateinit var textPublicStatus: TextView
-
     private lateinit var ratingBar: RatingBar
     private lateinit var textDate: TextView
     private lateinit var textTime: TextView
     private lateinit var textMemo: TextView
-
+    private lateinit var imageFood: ImageView
     private lateinit var imageAuthorIcon: ImageView
     private lateinit var textAuthorName: TextView
+
+    // いいね用
+    private lateinit var layoutDetailLike: LinearLayout
+    private lateinit var iconDetailLike: ImageView
+    private lateinit var textDetailLikeCount: TextView
+    private var currentLikedUserIds = mutableListOf<String>()
 
     private var currentRecord: Record? = null
 
@@ -52,27 +55,26 @@ class RecordDetailActivity : AppCompatActivity() {
         recordId = intent.getStringExtra("RECORD_ID")
         userId = intent.getStringExtra("USER_ID")
 
+        // View取得
         val header = findViewById<View>(R.id.header)
         val buttonBack = findViewById<ImageButton>(R.id.buttonBack)
-        textHeaderTitle = findViewById(R.id.textHeaderTitle)
+        val textHeaderTitle = findViewById<TextView>(R.id.textHeaderTitle)
+        val buttonEdit = findViewById<ImageButton>(R.id.buttonEdit)
+        val buttonDelete = findViewById<ImageButton>(R.id.buttonDelete)
 
         imageFood = findViewById(R.id.imageFood)
         textMenuName = findViewById(R.id.textMenuName)
-
-        // ★修正: TextViewを取得
         textPublicStatus = findViewById(R.id.textPublicStatus)
-
         ratingBar = findViewById(R.id.ratingBar)
-
         textDate = findViewById(R.id.textDate)
         textTime = findViewById(R.id.textTime)
         textMemo = findViewById(R.id.textMemo)
-
         imageAuthorIcon = findViewById(R.id.imageAuthorIcon)
         textAuthorName = findViewById(R.id.textAuthorName)
 
-        val buttonEdit = findViewById<ImageButton>(R.id.buttonEdit)
-        val buttonDelete = findViewById<ImageButton>(R.id.buttonDelete)
+        layoutDetailLike = findViewById(R.id.layoutDetailLike)
+        iconDetailLike = findViewById(R.id.iconDetailLike)
+        textDetailLikeCount = findViewById(R.id.textDetailLikeCount)
 
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -89,12 +91,22 @@ class RecordDetailActivity : AppCompatActivity() {
         textHeaderTitle.text = "記録の詳細"
 
         val currentUser = FirebaseAuth.getInstance().currentUser
+        val myUid = currentUser?.uid ?: ""
+
         if (currentUser != null && userId != null && currentUser.uid != userId) {
+            // 他人の投稿なら編集・削除ボタンを隠す
             buttonEdit.visibility = View.GONE
             buttonDelete.visibility = View.GONE
             loadAuthorInfo(userId!!)
         } else {
-            loadAuthorInfo(currentUser?.uid ?: "")
+            // 自分の投稿
+            loadAuthorInfo(myUid)
+        }
+
+        // ★いいねボタンは常に表示し、クリック可能にする
+        layoutDetailLike.visibility = View.VISIBLE
+        layoutDetailLike.setOnClickListener {
+            toggleLike(myUid)
         }
 
         displayInitialData()
@@ -125,42 +137,38 @@ class RecordDetailActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadAuthorInfo(authorId: String) {
-        if (authorId.isEmpty()) return
+    private fun toggleLike(myUid: String) {
+        if (myUid.isEmpty() || recordId == null || userId == null) return
 
-        FirebaseFirestore.getInstance().collection("users").document(authorId)
-            .get()
-            .addOnSuccessListener { document ->
-                if (document.exists()) {
-                    val name = document.getString("username") ?: "名称未設定"
-                    val photoUrl = document.getString("photoUrl")
+        val db = FirebaseFirestore.getInstance()
+        val docRef = db.collection("users").document(userId!!)
+            .collection("my_records").document(recordId!!)
 
-                    textAuthorName.text = name
-                    if (!photoUrl.isNullOrEmpty()) {
-                        Glide.with(this)
-                            .load(photoUrl)
-                            .circleCrop()
-                            .into(imageAuthorIcon)
-                    } else {
-                        Glide.with(this)
-                            .load(R.drawable.outline_account_circle_24)
-                            .circleCrop()
-                            .into(imageAuthorIcon)
-                    }
-                } else {
-                    textAuthorName.text = "不明なユーザー"
-                }
-            }
-            .addOnFailureListener {
-                textAuthorName.text = "読み込みエラー"
-            }
+        val isLiked = currentLikedUserIds.contains(myUid)
+
+        if (isLiked) {
+            // 解除
+            currentLikedUserIds.remove(myUid)
+            updateLikeUI(myUid)
+            docRef.update("likedUserIds", FieldValue.arrayRemove(myUid))
+        } else {
+            // 追加
+            currentLikedUserIds.add(myUid)
+            updateLikeUI(myUid)
+            docRef.update("likedUserIds", FieldValue.arrayUnion(myUid))
+        }
     }
 
-    override fun onResume() {
-        super.onResume()
-        val currentUser = FirebaseAuth.getInstance().currentUser
-        if (currentUser != null && userId != null && currentUser.uid == userId) {
-            fetchLatestData()
+    private fun updateLikeUI(myUid: String) {
+        textDetailLikeCount.text = currentLikedUserIds.size.toString()
+        if (currentLikedUserIds.contains(myUid)) {
+            // ★いいね済み：塗りつぶしのハートを表示し、色を赤にする
+            iconDetailLike.setImageResource(R.drawable.ic_heart_filled)
+            iconDetailLike.setColorFilter(Color.RED)
+        } else {
+            // ★未いいね：枠線のハートを表示し、色をグレーにする
+            iconDetailLike.setImageResource(R.drawable.ic_heart_outline)
+            iconDetailLike.setColorFilter(Color.parseColor("#CCCCCC"))
         }
     }
 
@@ -172,6 +180,13 @@ class RecordDetailActivity : AppCompatActivity() {
         val rating = intent.getFloatExtra("RATING", 0f)
         val timestamp = intent.getLongExtra("DATE_TIMESTAMP", 0)
 
+        // Intentからいいねリストを受け取る
+        val likedIds = intent.getStringArrayListExtra("LIKED_USER_IDS")
+        if (likedIds != null) {
+            currentLikedUserIds.clear()
+            currentLikedUserIds.addAll(likedIds)
+        }
+
         currentRecord = Record(
             id = recordId ?: "",
             userId = userId ?: "",
@@ -179,13 +194,20 @@ class RecordDetailActivity : AppCompatActivity() {
             memo = memo,
             imageUrl = imageUrl,
             isPublic = isPublic,
-            rating = rating
+            rating = rating,
+            // ★エラー回避のため一時的なリストを持たせる（本来はRecord.kt更新で解決）
+            likedUserIds = likedIds?.toList() ?: emptyList()
         )
         updateUI(menuName, memo, isPublic, rating, timestamp, imageUrl)
     }
 
+    override fun onResume() {
+        super.onResume()
+        fetchLatestData()
+    }
+
     private fun fetchLatestData() {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val uid = userId ?: return
         val rId = recordId ?: return
         val db = FirebaseFirestore.getInstance()
 
@@ -197,6 +219,15 @@ class RecordDetailActivity : AppCompatActivity() {
                     val record = document.toObject(Record::class.java)
                     if (record != null) {
                         currentRecord = record
+
+                        // ★ここが赤文字になる場合、Record.ktの更新が反映されていません
+                        // ステップ2のリビルドを行えば直ります
+                        currentLikedUserIds.clear()
+                        currentLikedUserIds.addAll(record.likedUserIds)
+
+                        val myUid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+                        updateLikeUI(myUid)
+
                         val timestamp = record.date?.toDate()?.time ?: 0L
                         updateUI(
                             record.menuName,
@@ -207,6 +238,25 @@ class RecordDetailActivity : AppCompatActivity() {
                             record.imageUrl
                         )
                     }
+                }
+            }
+    }
+
+    private fun loadAuthorInfo(authorId: String) {
+        if (authorId.isEmpty()) return
+        FirebaseFirestore.getInstance().collection("users").document(authorId)
+            .get().addOnSuccessListener { document ->
+                if (document.exists()) {
+                    val name = document.getString("username") ?: "名称未設定"
+                    val photoUrl = document.getString("photoUrl")
+                    textAuthorName.text = name
+                    if (!photoUrl.isNullOrEmpty()) {
+                        Glide.with(this).load(photoUrl).circleCrop().into(imageAuthorIcon)
+                    } else {
+                        Glide.with(this).load(R.drawable.outline_account_circle_24).circleCrop().into(imageAuthorIcon)
+                    }
+                } else {
+                    textAuthorName.text = "不明なユーザー"
                 }
             }
     }
@@ -222,13 +272,12 @@ class RecordDetailActivity : AppCompatActivity() {
         textMenuName.text = menuName
         textMemo.text = memo
 
-        // ★修正: 公開状態に応じてテキストと色を変更
         if (isPublic) {
             textPublicStatus.text = "公開中"
-            textPublicStatus.setTextColor(Color.parseColor("#4CAF50")) // 緑色
+            textPublicStatus.setTextColor(Color.parseColor("#4CAF50"))
         } else {
             textPublicStatus.text = "非公開"
-            textPublicStatus.setTextColor(Color.parseColor("#888888")) // グレー
+            textPublicStatus.setTextColor(Color.parseColor("#888888"))
         }
 
         ratingBar.rating = rating
@@ -247,15 +296,16 @@ class RecordDetailActivity : AppCompatActivity() {
         } else {
             Glide.with(this).load(R.drawable.background_with_logo).centerCrop().into(imageFood)
         }
+
+        val myUid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+        updateLikeUI(myUid)
     }
 
     private fun showDeleteConfirmation() {
         AlertDialog.Builder(this)
             .setTitle("記録を削除")
             .setMessage("本当にこの記録を削除しますか？")
-            .setPositiveButton("削除") { _, _ ->
-                deleteRecord()
-            }
+            .setPositiveButton("削除") { _, _ -> deleteRecord() }
             .setNegativeButton("キャンセル", null)
             .show()
     }
@@ -263,7 +313,6 @@ class RecordDetailActivity : AppCompatActivity() {
     private fun deleteRecord() {
         val currentUser = FirebaseAuth.getInstance().currentUser
         if (currentUser == null || recordId == null) return
-
         val db = FirebaseFirestore.getInstance()
         db.collection("users").document(currentUser.uid)
             .collection("my_records").document(recordId!!)

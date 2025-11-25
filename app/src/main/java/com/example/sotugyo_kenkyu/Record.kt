@@ -18,6 +18,6 @@ data class Record(
     val rating: Float = 0f,
     val postedAt: Timestamp? = null,
 
-    // ★追加: いいねしたユーザーIDのリスト
+    // ★ここが重要！この行がないとエラーになります
     val likedUserIds: List<String> = emptyList()
 ) : Serializable

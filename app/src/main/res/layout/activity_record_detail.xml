@@ -157,18 +157,49 @@
                     app:layout_constraintTop_toTopOf="@+id/textMenuName"
                     app:layout_constraintBottom_toBottomOf="@+id/textMenuName"/>
 
+                <LinearLayout
+                    android:id="@+id/layoutDetailLike"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/rounded_search_bar_bg"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="6dp"
+                    android:layout_marginTop="12dp"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/textMenuName">
+
+                    <ImageView
+                        android:id="@+id/iconDetailLike"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_favorite"
+                        app:tint="#CCCCCC"/>
+
+                    <TextView
+                        android:id="@+id/textDetailLikeCount"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#404040"
+                        android:layout_marginStart="8dp"/>
+                </LinearLayout>
+
                 <RatingBar
                     android:id="@+id/ratingBar"
                     style="?android:attr/ratingBarStyleSmall"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
                     android:numStars="5"
                     android:rating="4"
                     android:progressTint="#FFD700"
                     android:secondaryProgressTint="#00000000"
                     android:isIndicator="true"
-                    app:layout_constraintStart_toStartOf="parent"
+                    android:layout_marginTop="12dp"
+                    app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintTop_toBottomOf="@+id/textMenuName" />
 
                 <LinearLayout
@@ -176,10 +207,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:layout_marginStart="8dp"
-                    app:layout_constraintBottom_toBottomOf="@+id/ratingBar"
-                    app:layout_constraintStart_toEndOf="@+id/ratingBar"
-                    app:layout_constraintTop_toTopOf="@+id/ratingBar">
+                    android:layout_marginTop="8dp"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/layoutDetailLike">
 
                     <TextView
                         android:id="@+id/textDate"
@@ -205,7 +235,7 @@
                     android:layout_height="1dp"
                     android:layout_marginTop="16dp"
                     android:background="#EEEEEE"
-                    app:layout_constraintTop_toBottomOf="@+id/ratingBar" />
+                    app:layout_constraintTop_toBottomOf="@+id/layoutDateTime" />
 
                 <TextView
                     android:id="@+id/labelMemo"
