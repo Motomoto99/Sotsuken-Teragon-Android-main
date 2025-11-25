@@ -46,21 +46,21 @@ class PublicRecordsFragment : Fragment() {
         }
 
         recyclerView = view.findViewById(R.id.recyclerViewPublicRecords)
-
         recyclerView.layoutManager = GridLayoutManager(requireContext(), 2)
+
+        // ★修正: 引数なし（リストのみ）で初期化
         recordAdapter = RecordAdapter(recordList)
         recyclerView.adapter = recordAdapter
 
         loadPublicRecords()
     }
 
-    // ★修正: みんなの投稿を "postedAt" 順で取得
     private fun loadPublicRecords() {
         val db = FirebaseFirestore.getInstance()
 
         db.collectionGroup("my_records")
             .whereEqualTo("isPublic", true)
-            .orderBy("postedAt", Query.Direction.DESCENDING) // ★変更
+            .orderBy("postedAt", Query.Direction.DESCENDING)
             .get()
             .addOnSuccessListener { result ->
                 recordList.clear()

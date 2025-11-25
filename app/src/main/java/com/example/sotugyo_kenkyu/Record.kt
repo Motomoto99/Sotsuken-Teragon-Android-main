@@ -8,7 +8,7 @@ data class Record(
     var id: String = "",
     val userId: String = "",
     val menuName: String = "",
-    val date: Timestamp? = null,      // 記録日（食べた日）
+    val date: Timestamp? = null,
     val memo: String = "",
     val imageUrl: String = "",
 
@@ -16,7 +16,8 @@ data class Record(
     var isPublic: Boolean = false,
 
     val rating: Float = 0f,
+    val postedAt: Timestamp? = null,
 
-    // ★追加: 公開日時（みんなの投稿の並び順用）
-    val postedAt: Timestamp? = null
+    // ★追加: いいねしたユーザーIDのリスト
+    val likedUserIds: List<String> = emptyList()
 ) : Serializable
