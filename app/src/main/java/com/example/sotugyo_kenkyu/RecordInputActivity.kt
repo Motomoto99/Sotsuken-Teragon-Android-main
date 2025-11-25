@@ -59,7 +59,7 @@ class RecordInputActivity : AppCompatActivity() {
     // ★ 画像判定用 Firebase AI Logic モデル
     private val imageJudgeModel: GenerativeModel by lazy {
         Firebase.ai(backend = GenerativeBackend.googleAI())
-            .generativeModel(modelName = "gemini-2.5-flash-lite")
+            .generativeModel(modelName = "gemini-2.5-flash")
     }
 
     private val pickImageLauncher =
