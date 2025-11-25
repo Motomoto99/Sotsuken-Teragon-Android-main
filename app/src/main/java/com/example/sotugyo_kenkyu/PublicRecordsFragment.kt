@@ -6,7 +6,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
-import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -19,7 +18,7 @@ import com.google.firebase.firestore.Query
 class PublicRecordsFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
-    private lateinit var recordAdapter: RecordAdapter // RecordFragment.ktにあるアダプターを再利用
+    private lateinit var recordAdapter: RecordAdapter
     private val recordList = mutableListOf<Record>()
 
     override fun onCreateView(
@@ -35,7 +34,6 @@ class PublicRecordsFragment : Fragment() {
         val header = view.findViewById<View>(R.id.header)
         val buttonBack = view.findViewById<ImageButton>(R.id.buttonBack)
 
-        // ヘッダーのパディング調整
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
@@ -48,10 +46,10 @@ class PublicRecordsFragment : Fragment() {
         }
 
         recyclerView = view.findViewById(R.id.recyclerViewPublicRecords)
-
-        // 2列のグリッド表示
         recyclerView.layoutManager = GridLayoutManager(requireContext(), 2)
-        recordAdapter = RecordAdapter(recordList) // RecordFragmentで定義したクラスを使用
+
+        // ★修正: 引数なし（リストのみ）で初期化
+        recordAdapter = RecordAdapter(recordList)
         recyclerView.adapter = recordAdapter
 
         loadPublicRecords()
@@ -60,10 +58,9 @@ class PublicRecordsFragment : Fragment() {
     private fun loadPublicRecords() {
         val db = FirebaseFirestore.getInstance()
 
-        // 全ユーザーの公開記録を取得 (Collection Group Query)
         db.collectionGroup("my_records")
             .whereEqualTo("isPublic", true)
-            .orderBy("date", Query.Direction.DESCENDING)
+            .orderBy("postedAt", Query.Direction.DESCENDING)
             .get()
             .addOnSuccessListener { result ->
                 recordList.clear()

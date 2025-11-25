@@ -32,6 +32,9 @@ class HomeFragment : Fragment() {
     private var currentSnapshots: QuerySnapshot? = null
     private var lastSeenDate: Timestamp? = null
 
+    private var myRecordList: List<Record> = emptyList()
+    private var publicRecordList: List<Record> = emptyList()
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -68,13 +71,19 @@ class HomeFragment : Fragment() {
             (activity as? HomeActivity)?.findViewById<BottomNavigationView>(R.id.bottomNavigation)?.selectedItemId = R.id.nav_record
         }
 
-        // ★追加: みんなの投稿「もっと見る」
         val textMorePublic: TextView = view.findViewById(R.id.textMorePublic)
         textMorePublic.setOnClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, PublicRecordsFragment())
                 .addToBackStack(null)
                 .commit()
+        }
+
+        if (myRecordList.isNotEmpty()) {
+            updateRecentRecordsUI(myRecordList)
+        }
+        if (publicRecordList.isNotEmpty()) {
+            updateEveryoneRecordsUI(publicRecordList)
         }
 
         loadUserIcon()
@@ -94,13 +103,10 @@ class HomeFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         loadUserIcon()
-        // 自分の記録を読み込む
         loadRecentRecords()
-        // ★追加: みんなの記録を読み込む
         loadEveryoneRecords()
     }
 
-    // 自分の最新記録
     private fun loadRecentRecords() {
         val user = FirebaseAuth.getInstance().currentUser ?: return
         val db = FirebaseFirestore.getInstance()
@@ -111,10 +117,8 @@ class HomeFragment : Fragment() {
             .get()
             .addOnSuccessListener { documents ->
                 val records = documents.toObjects(Record::class.java)
+                myRecordList = records
                 updateRecentRecordsUI(records)
-            }
-            .addOnFailureListener {
-                // エラーハンドリング
             }
     }
 
@@ -128,7 +132,6 @@ class HomeFragment : Fragment() {
         val img2 = view.findViewById<ImageView>(R.id.imgRecord2)
         val text2 = view.findViewById<TextView>(R.id.textRecordTitle2)
 
-        // 1件目
         if (records.isNotEmpty()) {
             val r1 = records[0]
             card1.visibility = View.VISIBLE
@@ -143,7 +146,6 @@ class HomeFragment : Fragment() {
             card1.visibility = View.INVISIBLE
         }
 
-        // 2件目
         if (records.size >= 2) {
             val r2 = records[1]
             card2.visibility = View.VISIBLE
@@ -159,13 +161,9 @@ class HomeFragment : Fragment() {
         }
     }
 
-    // ★追加: みんなの最新投稿（Collection Group Query）
     private fun loadEveryoneRecords() {
         val db = FirebaseFirestore.getInstance()
 
-        // "my_records" という名前の全コレクションから、isPublic=true のものを日付順で取得
-        // ※このクエリを実行するにはFirestoreでインデックスを作成する必要があります。
-        // 実行時にLogcatにエラーとともにインデックス作成用URLが表示されるので、それをクリックしてください。
         db.collectionGroup("my_records")
             .whereEqualTo("isPublic", true)
             .orderBy("date", Query.Direction.DESCENDING)
@@ -173,6 +171,7 @@ class HomeFragment : Fragment() {
             .get()
             .addOnSuccessListener { documents ->
                 val records = documents.toObjects(Record::class.java)
+                publicRecordList = records
                 updateEveryoneRecordsUI(records)
             }
             .addOnFailureListener { e ->
@@ -180,7 +179,6 @@ class HomeFragment : Fragment() {
             }
     }
 
-    // ★追加: みんなの投稿UI更新
     private fun updateEveryoneRecordsUI(records: List<Record>) {
         val view = view ?: return
         val card1 = view.findViewById<CardView>(R.id.cardPublic1)
@@ -191,7 +189,6 @@ class HomeFragment : Fragment() {
         val img2 = view.findViewById<ImageView>(R.id.imgPublic2)
         val text2 = view.findViewById<TextView>(R.id.textPublicTitle2)
 
-        // 1件目
         if (records.isNotEmpty()) {
             val r1 = records[0]
             card1.visibility = View.VISIBLE
@@ -206,7 +203,6 @@ class HomeFragment : Fragment() {
             card1.visibility = View.INVISIBLE
         }
 
-        // 2件目
         if (records.size >= 2) {
             val r2 = records[1]
             card2.visibility = View.VISIBLE
@@ -240,23 +236,35 @@ class HomeFragment : Fragment() {
         context.startActivity(intent)
     }
 
+    // ★★★ 修正: FirestoreからアイコンURLを取得して表示する ★★★
     private fun loadUserIcon() {
         val view = view ?: return
         val userIcon: ImageButton = view.findViewById(R.id.iconUser)
-        val user = FirebaseAuth.getInstance().currentUser
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        val db = FirebaseFirestore.getInstance()
 
-        if (user?.photoUrl != null) {
-            Glide.with(this)
-                .load(user.photoUrl)
-                .circleCrop()
-                .diskCacheStrategy(DiskCacheStrategy.ALL)
-                .into(userIcon)
-        } else {
-            Glide.with(this)
-                .load(R.drawable.outline_account_circle_24)
-                .circleCrop()
-                .into(userIcon)
-        }
+        // まずはデフォルトアイコンを表示しておく（読み込み中のチラつき防止）
+        Glide.with(this)
+            .load(R.drawable.outline_account_circle_24)
+            .circleCrop()
+            .into(userIcon)
+
+        // Firestoreから最新情報を取得
+        db.collection("users").document(user.uid).get()
+            .addOnSuccessListener { document ->
+                if (document != null && document.exists()) {
+                    val photoUrl = document.getString("photoUrl")
+                    // FirestoreにURLが保存されており、かつ空文字でない場合のみ読み込む
+                    if (!photoUrl.isNullOrEmpty()) {
+                        Glide.with(this)
+                            .load(photoUrl)
+                            .circleCrop()
+                            .diskCacheStrategy(DiskCacheStrategy.ALL)
+                            .into(userIcon)
+                    }
+                    // 空文字の場合はデフォルトのまま（初期ユーザー状態）
+                }
+            }
     }
 
     private fun loadNotificationIcon() {

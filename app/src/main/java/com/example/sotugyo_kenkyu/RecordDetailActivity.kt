@@ -1,6 +1,7 @@
 package com.example.sotugyo_kenkyu
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageButton
@@ -15,7 +16,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import com.bumptech.glide.Glide
-import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
@@ -30,13 +30,15 @@ class RecordDetailActivity : AppCompatActivity() {
     private lateinit var textHeaderTitle: TextView
     private lateinit var imageFood: ImageView
     private lateinit var textMenuName: TextView
-    private lateinit var switchPublic: MaterialSwitch
+
+    // ★修正: Switch ではなく TextView に変更
+    private lateinit var textPublicStatus: TextView
+
     private lateinit var ratingBar: RatingBar
     private lateinit var textDate: TextView
     private lateinit var textTime: TextView
     private lateinit var textMemo: TextView
 
-    // ★追加: 投稿者情報のView
     private lateinit var imageAuthorIcon: ImageView
     private lateinit var textAuthorName: TextView
 
@@ -56,14 +58,16 @@ class RecordDetailActivity : AppCompatActivity() {
 
         imageFood = findViewById(R.id.imageFood)
         textMenuName = findViewById(R.id.textMenuName)
-        switchPublic = findViewById(R.id.switchPublic)
+
+        // ★修正: TextViewを取得
+        textPublicStatus = findViewById(R.id.textPublicStatus)
+
         ratingBar = findViewById(R.id.ratingBar)
 
         textDate = findViewById(R.id.textDate)
         textTime = findViewById(R.id.textTime)
         textMemo = findViewById(R.id.textMemo)
 
-        // ★追加: View取得
         imageAuthorIcon = findViewById(R.id.imageAuthorIcon)
         textAuthorName = findViewById(R.id.textAuthorName)
 
@@ -83,18 +87,13 @@ class RecordDetailActivity : AppCompatActivity() {
         }
 
         textHeaderTitle.text = "記録の詳細"
-        switchPublic.isClickable = false
 
         val currentUser = FirebaseAuth.getInstance().currentUser
         if (currentUser != null && userId != null && currentUser.uid != userId) {
-            // 自分以外の投稿の場合
             buttonEdit.visibility = View.GONE
             buttonDelete.visibility = View.GONE
-            // ★追加: 投稿者情報をロード
             loadAuthorInfo(userId!!)
         } else {
-            // 自分の投稿の場合
-            // 必要なら自分の情報を表示しても良いが、ここでは「あなた」とするか、ロードする
             loadAuthorInfo(currentUser?.uid ?: "")
         }
 
@@ -114,6 +113,9 @@ class RecordDetailActivity : AppCompatActivity() {
                 if (currentRecord!!.date != null) {
                     intent.putExtra("DATE_TIMESTAMP", currentRecord!!.date!!.toDate().time)
                 }
+                if (currentRecord!!.postedAt != null) {
+                    intent.putExtra("POSTED_TIMESTAMP", currentRecord!!.postedAt!!.toDate().time)
+                }
                 startActivity(intent)
             }
         }
@@ -123,7 +125,6 @@ class RecordDetailActivity : AppCompatActivity() {
         }
     }
 
-    // ★追加: 投稿者の情報をFirestoreから取得
     private fun loadAuthorInfo(authorId: String) {
         if (authorId.isEmpty()) return
 
@@ -220,8 +221,16 @@ class RecordDetailActivity : AppCompatActivity() {
     ) {
         textMenuName.text = menuName
         textMemo.text = memo
-        switchPublic.isChecked = isPublic
-        switchPublic.text = if (isPublic) "公開中" else "非公開"
+
+        // ★修正: 公開状態に応じてテキストと色を変更
+        if (isPublic) {
+            textPublicStatus.text = "公開中"
+            textPublicStatus.setTextColor(Color.parseColor("#4CAF50")) // 緑色
+        } else {
+            textPublicStatus.text = "非公開"
+            textPublicStatus.setTextColor(Color.parseColor("#888888")) // グレー
+        }
+
         ratingBar.rating = rating
 
         if (timestamp > 0) {

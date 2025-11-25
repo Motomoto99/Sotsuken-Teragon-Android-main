@@ -9,11 +9,13 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding // ★ 追加
+import androidx.core.view.updatePadding
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.google.firebase.auth.FirebaseAuth // ★ 追加
+import com.google.android.gms.tasks.Tasks // ★追加
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.QuerySnapshot // ★追加
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -29,7 +31,6 @@ class NotificationActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_notification)
 
-        // Viewの取得
         textLatestMessage = findViewById(R.id.textLatestMessage)
         textUnreadCount = findViewById(R.id.textUnreadCount)
         textTime = findViewById(R.id.textTime)
@@ -39,7 +40,6 @@ class NotificationActivity : AppCompatActivity() {
         val buttonAdminChat = findViewById<View>(R.id.buttonAdminChat)
         val header = findViewById<View>(R.id.header)
 
-        // WindowInsets設定 (ヘッダーにパディング適用)
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
@@ -80,21 +80,49 @@ class NotificationActivity : AppCompatActivity() {
         }
     }
 
+    // ★★★ 修正: 全体と個人の両方を取得して、新しい方を表示する ★★★
     private fun updateLatestMessage(onComplete: () -> Unit = {}) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return
         val db = FirebaseFirestore.getInstance()
 
-        db.collection("notifications")
+        // 1. 全体のお知らせの最新
+        val globalTask = db.collection("notifications")
             .orderBy("date", Query.Direction.DESCENDING)
             .limit(1)
             .get()
-            .addOnSuccessListener { documents ->
-                if (!documents.isEmpty) {
-                    val notification = documents.documents[0].toObject(Notification::class.java)
-                    textLatestMessage.text = notification?.content ?: ""
 
-                    if (notification?.date != null) {
+        // 2. 個人宛のお知らせの最新
+        val personalTask = db.collection("users").document(user.uid)
+            .collection("notifications")
+            .orderBy("date", Query.Direction.DESCENDING)
+            .limit(1)
+            .get()
+
+        // 両方の取得を待つ
+        Tasks.whenAllSuccess<QuerySnapshot>(globalTask, personalTask)
+            .addOnSuccessListener { results ->
+                val globalSnap = results[0]
+                val personalSnap = results[1]
+
+                val globalNotif = globalSnap.documents.firstOrNull()?.toObject(Notification::class.java)
+                val personalNotif = personalSnap.documents.firstOrNull()?.toObject(Notification::class.java)
+
+                // 日付を比較して新しい方を採用
+                val latest = when {
+                    globalNotif == null -> personalNotif
+                    personalNotif == null -> globalNotif
+                    else -> {
+                        val gDate = globalNotif.date?.toDate()
+                        val pDate = personalNotif.date?.toDate()
+                        if (gDate != null && pDate != null && gDate > pDate) globalNotif else personalNotif
+                    }
+                }
+
+                if (latest != null) {
+                    textLatestMessage.text = latest.content
+                    if (latest.date != null) {
                         val sdf = SimpleDateFormat("MM/dd HH:mm", Locale.JAPAN)
-                        textTime.text = sdf.format(notification.date.toDate())
+                        textTime.text = sdf.format(latest.date.toDate())
                     } else {
                         textTime.text = ""
                     }
@@ -111,7 +139,7 @@ class NotificationActivity : AppCompatActivity() {
             }
     }
 
-    // ★★★ 修正: Firestoreから既読日時を取得して計算 ★★★
+    // ★★★ 修正: 全体と個人の両方の未読数を合計する ★★★
     private fun updateUnreadCount(onComplete: () -> Unit = {}) {
         val user = FirebaseAuth.getInstance().currentUser
         if (user == null) {
@@ -127,14 +155,28 @@ class NotificationActivity : AppCompatActivity() {
                 val lastSeenTimestamp = userDoc.getTimestamp("lastSeenNotificationDate")
                 val threshold = lastSeenTimestamp?.toDate()?.time ?: 0L
 
-                // 2. 通知一覧を取得してカウント
-                db.collection("notifications").get()
-                    .addOnSuccessListener { result ->
+                // 2. 全体のお知らせを取得
+                val globalTask = db.collection("notifications").get()
+
+                // 3. 個人宛のお知らせを取得
+                val personalTask = db.collection("users").document(user.uid)
+                    .collection("notifications").get()
+
+                Tasks.whenAllSuccess<QuerySnapshot>(globalTask, personalTask)
+                    .addOnSuccessListener { results ->
                         var unreadCount = 0
-                        for (document in result) {
-                            val notification = document.toObject(Notification::class.java)
-                            val date = notification.date
-                            if (date != null && date.toDate().time > threshold) {
+
+                        // 全体のカウント
+                        for (doc in results[0]) {
+                            val n = doc.toObject(Notification::class.java)
+                            if (n.date != null && n.date.toDate().time > threshold) {
+                                unreadCount++
+                            }
+                        }
+                        // 個人のカウント
+                        for (doc in results[1]) {
+                            val n = doc.toObject(Notification::class.java)
+                            if (n.date != null && n.date.toDate().time > threshold) {
                                 unreadCount++
                             }
                         }

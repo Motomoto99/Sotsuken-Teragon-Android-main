@@ -1,6 +1,8 @@
 package com.example.sotugyo_kenkyu
 
 import android.app.DatePickerDialog
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
@@ -19,12 +21,22 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.ai.FirebaseAI
+import com.google.firebase.ai.GenerativeModel
+import com.google.firebase.ai.ai
+import com.google.firebase.ai.type.GenerativeBackend
+import com.google.firebase.ai.type.content
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -42,18 +54,26 @@ class RecordInputActivity : AppCompatActivity() {
     private var editRecordId: String? = null
     private var originalImageUrl: String = ""
     private var currentRating: Float = 0f
+    private var originalPostedAt: Timestamp? = null // 既存の公開日時
 
-    private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
-            selectedImageUri = uri
-            Glide.with(this)
-                .load(uri)
-                .centerCrop()
-                .into(imagePhoto)
-
-            findViewById<View>(R.id.layoutPhotoPlaceholder).visibility = View.GONE
-        }
+    // ★ 画像判定用 Firebase AI Logic モデル
+    private val imageJudgeModel: GenerativeModel by lazy {
+        Firebase.ai(backend = GenerativeBackend.googleAI())
+            .generativeModel(modelName = "gemini-2.5-flash")
     }
+
+    private val pickImageLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            if (uri != null) {
+                selectedImageUri = uri
+                Glide.with(this)
+                    .load(uri)
+                    .centerCrop()
+                    .into(imagePhoto)
+
+                findViewById<View>(R.id.layoutPhotoPlaceholder).visibility = View.GONE
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -175,23 +195,105 @@ class RecordInputActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            buttonSave.isEnabled = false
-            Toast.makeText(this, "保存中...", Toast.LENGTH_SHORT).show()
+            // ★ ここからコルーチンで AI 判定 → 保存処理
+            lifecycleScope.launch {
+                buttonSave.isEnabled = false
+                Toast.makeText(
+                    this@RecordInputActivity,
+                    "保存中...",
+                    Toast.LENGTH_SHORT
+                ).show()
 
-            // 画像が変更されたかチェック
-            if (selectedImageUri != null) {
-                // 新しい画像をアップロードしてから保存
-                uploadImageAndSave(user.uid, menuName, inputMemo.text.toString(), switchPublic.isChecked)
-            } else {
-                // 画像変更なし（編集モードのみここに来る）
-                if (isEditMode) {
-                    saveRecordToFirestore(user.uid, menuName, inputMemo.text.toString(), switchPublic.isChecked, originalImageUrl)
+                // 新しい画像が選択されている場合のみ判定する
+                if (selectedImageUri != null) {
+                    val bitmap = loadBitmapFromUri(selectedImageUri!!)
+                    if (bitmap == null) {
+                        Toast.makeText(
+                            this@RecordInputActivity,
+                            "画像の読み込みに失敗しました",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        buttonSave.isEnabled = true
+                        return@launch
+                    }
+
+                    val isFood = try {
+                        judgeImageIsFood(bitmap)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        Toast.makeText(
+                            this@RecordInputActivity,
+                            "画像の判定に失敗しました。ネットワーク状態を確認してください。",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        buttonSave.isEnabled = true
+                        return@launch
+                    }
+
+                    if (!isFood) {
+                        AlertDialog.Builder(this@RecordInputActivity)
+                            .setTitle("画像を確認してください")
+                            .setMessage("料理や食べ物の写真ではない可能性があります。\n料理の写真に変更してから保存してください。")
+                            .setPositiveButton("OK", null)
+                            .show()
+
+                        buttonSave.isEnabled = true
+                        return@launch
+                    }
+                }
+
+                // ここまで来たら料理画像としてOKなので、従来の保存処理へ
+                val memo = inputMemo.text.toString()
+                val isPublic = switchPublic.isChecked
+
+                if (selectedImageUri != null) {
+                    // 新しい画像をアップロードしてから保存
+                    uploadImageAndSave(user.uid, menuName, memo, isPublic)
                 } else {
-                    // 通常ここには来ない
-                    buttonSave.isEnabled = true
+                    // 画像変更なし（編集モードのみここに来る）
+                    if (isEditMode) {
+                        saveRecordToFirestore(
+                            user.uid,
+                            menuName,
+                            memo,
+                            isPublic,
+                            originalImageUrl
+                        )
+                    } else {
+                        // 通常ここには来ない
+                        buttonSave.isEnabled = true
+                    }
                 }
             }
         }
+    }
+
+    // 画像 URI → Bitmap 変換（IO スレッド）
+    private suspend fun loadBitmapFromUri(uri: Uri): Bitmap? = withContext(Dispatchers.IO) {
+        try {
+            contentResolver.openInputStream(uri)?.use { input ->
+                BitmapFactory.decodeStream(input)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    // Firebase AI Logic で「料理画像かどうか」を判定
+    private suspend fun judgeImageIsFood(bitmap: Bitmap): Boolean {
+        // PromptRepository から判定用プロンプトを取得（なければデフォルト）
+        val prompt = PromptRepository.getImageJudgePrompt()
+
+        val input = content {
+            image(bitmap)
+            text(prompt)
+        }
+
+        val response = imageJudgeModel.generateContent(input)
+        val result = response.text?.trim()?.lowercase(Locale.getDefault()) ?: "no"
+
+        return result == "yes"
     }
 
     private fun checkEditMode() {
@@ -201,6 +303,12 @@ class RecordInputActivity : AppCompatActivity() {
             editRecordId = id
             originalImageUrl = intent.getStringExtra("IMAGE_URL") ?: ""
             currentRating = intent.getFloatExtra("RATING", 0f)
+
+            // 既存の公開日時を受け取る
+            val postedTime = intent.getLongExtra("POSTED_TIMESTAMP", 0)
+            if (postedTime > 0) {
+                originalPostedAt = Timestamp(Date(postedTime))
+            }
         }
     }
 
@@ -226,7 +334,12 @@ class RecordInputActivity : AppCompatActivity() {
         view.text = String.format(Locale.getDefault(), "%d/%02d/%02d", year, month, day)
     }
 
-    private fun uploadImageAndSave(uid: String, menuName: String, memo: String, isPublic: Boolean) {
+    private fun uploadImageAndSave(
+        uid: String,
+        menuName: String,
+        memo: String,
+        isPublic: Boolean
+    ) {
         val storageRef = FirebaseStorage.getInstance().reference
         val filename = UUID.randomUUID().toString()
         val imageRef = storageRef.child("records/$uid/$filename.jpg")
@@ -243,32 +356,55 @@ class RecordInputActivity : AppCompatActivity() {
             }
     }
 
-    private fun saveRecordToFirestore(uid: String, menuName: String, memo: String, isPublic: Boolean, imageUrl: String) {
+    private fun saveRecordToFirestore(
+        uid: String,
+        menuName: String,
+        memo: String,
+        isPublic: Boolean,
+        imageUrl: String
+    ) {
         val db = FirebaseFirestore.getInstance()
         val userRecordsRef = db.collection("users").document(uid).collection("my_records")
 
-        // ★追加: 元の公開状態を取得（Intentから）
         val originalIsPublic = intent.getBooleanExtra("IS_PUBLIC", false)
 
-        // ★追加: 日付決定ロジック
-        // 「編集モード」かつ「非公開→公開」への変更時のみ、日付を現在時刻に更新する
-        // それ以外（新規作成、公開→公開の修正など）は、画面で設定されている日付（calendar.time）を使用する
-        val dateToSave = if (isEditMode && !originalIsPublic && isPublic) {
-            Timestamp.now()
+        // 日付（date）は常にカレンダーで指定した日を使う
+        val recordDate = Timestamp(calendar.time)
+
+        // 公開日時（postedAt）の決定ロジック
+        val postedAtDate = if (isPublic) {
+            if (!isEditMode) {
+                // 新規作成で「公開」なら、現在時刻
+                Timestamp.now()
+            } else if (!originalIsPublic) {
+                // 編集で「非公開→公開」なら、現在時刻
+                Timestamp.now()
+            } else {
+                // 「公開→公開」なら、以前の公開日を維持
+                originalPostedAt ?: recordDate
+            }
         } else {
-            Timestamp(calendar.time)
+            // 非公開なら null
+            null
         }
 
         if (isEditMode && editRecordId != null) {
-            // ★ 更新処理
+            // 更新処理
             val updateData = hashMapOf<String, Any>(
                 "menuName" to menuName,
-                "date" to dateToSave, // ★ここを修正した変数に変更
+                "date" to recordDate,
+                // postedAt は null の可能性があるので Any? にしたいが、
+                // 既存の型を崩さないように、公開時のみ入れる運用を想定
                 "memo" to memo,
                 "imageUrl" to imageUrl,
                 "isPublic" to isPublic,
                 "rating" to currentRating
             )
+
+            // postedAt を更新する必要があるときだけフィールドに含める
+            if (postedAtDate != null) {
+                updateData["postedAt"] = postedAtDate
+            }
 
             userRecordsRef.document(editRecordId!!)
                 .update(updateData)
@@ -281,11 +417,12 @@ class RecordInputActivity : AppCompatActivity() {
                 }
 
         } else {
-            // ★ 新規作成処理
+            // 新規作成処理
             val newRecord = Record(
                 userId = uid,
                 menuName = menuName,
-                date = dateToSave, // ★ここを修正した変数に変更
+                date = recordDate,           // 記録日
+                postedAt = postedAtDate,     // みんなの投稿用日時
                 memo = memo,
                 imageUrl = imageUrl,
                 isPublic = isPublic,

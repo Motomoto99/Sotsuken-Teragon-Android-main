@@ -1,7 +1,8 @@
 package com.example.sotugyo_kenkyu
 
 import com.google.firebase.Timestamp
-import com.google.firebase.firestore.PropertyName // ★追加
+import com.google.firebase.firestore.PropertyName
+import java.io.Serializable
 
 data class Record(
     var id: String = "",
@@ -11,8 +12,12 @@ data class Record(
     val memo: String = "",
     val imageUrl: String = "",
 
-    // ★修正: Firestore上のフィールド名を "isPublic" に強制する
-    @get:PropertyName("isPublic") @set:PropertyName("isPublic") var isPublic: Boolean = false,
+    @get:PropertyName("isPublic") @set:PropertyName("isPublic")
+    var isPublic: Boolean = false,
 
-    val rating: Float = 0f
-)
+    val rating: Float = 0f,
+    val postedAt: Timestamp? = null,
+
+    // ★追加: いいねしたユーザーIDのリスト
+    val likedUserIds: List<String> = emptyList()
+) : Serializable
