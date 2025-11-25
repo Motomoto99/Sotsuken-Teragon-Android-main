@@ -17,6 +17,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import com.bumptech.glide.Glide
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -39,7 +40,7 @@ class RecordDetailActivity : AppCompatActivity() {
     private lateinit var imageAuthorIcon: ImageView
     private lateinit var textAuthorName: TextView
 
-    // いいね用
+    // いいね用UI
     private lateinit var layoutDetailLike: LinearLayout
     private lateinit var iconDetailLike: ImageView
     private lateinit var textDetailLikeCount: TextView
@@ -94,7 +95,7 @@ class RecordDetailActivity : AppCompatActivity() {
         val myUid = currentUser?.uid ?: ""
 
         if (currentUser != null && userId != null && currentUser.uid != userId) {
-            // 他人の投稿なら編集・削除ボタンを隠す
+            // 他人の投稿
             buttonEdit.visibility = View.GONE
             buttonDelete.visibility = View.GONE
             loadAuthorInfo(userId!!)
@@ -103,7 +104,7 @@ class RecordDetailActivity : AppCompatActivity() {
             loadAuthorInfo(myUid)
         }
 
-        // ★いいねボタンは常に表示し、クリック可能にする
+        // いいねボタンは常に表示
         layoutDetailLike.visibility = View.VISIBLE
         layoutDetailLike.setOnClickListener {
             toggleLike(myUid)
@@ -137,6 +138,7 @@ class RecordDetailActivity : AppCompatActivity() {
         }
     }
 
+    // ★★★ いいね切り替え処理 ★★★
     private fun toggleLike(myUid: String) {
         if (myUid.isEmpty() || recordId == null || userId == null) return
 
@@ -147,26 +149,58 @@ class RecordDetailActivity : AppCompatActivity() {
         val isLiked = currentLikedUserIds.contains(myUid)
 
         if (isLiked) {
-            // 解除
+            // いいね解除
             currentLikedUserIds.remove(myUid)
             updateLikeUI(myUid)
             docRef.update("likedUserIds", FieldValue.arrayRemove(myUid))
         } else {
-            // 追加
+            // いいね追加
             currentLikedUserIds.add(myUid)
             updateLikeUI(myUid)
             docRef.update("likedUserIds", FieldValue.arrayUnion(myUid))
+                .addOnSuccessListener {
+                    // ★追加成功時に通知を送信
+                    sendLikeNotification(myUid)
+                }
         }
+    }
+
+    // ★★★ 通知送信メソッド ★★★
+    private fun sendLikeNotification(myUid: String) {
+        val targetUserId = userId ?: return
+        // 自分自身の投稿へのいいねは通知しない
+        if (targetUserId == myUid) return
+
+        val db = FirebaseFirestore.getInstance()
+
+        // 1. 自分の名前を取得（「〇〇さんが...」と表示するため）
+        db.collection("users").document(myUid).get()
+            .addOnSuccessListener { document ->
+                // 名前が設定されていなければ「誰か」とする
+                val myName = document.getString("username") ?: "誰か"
+                val menuName = currentRecord?.menuName ?: "料理"
+
+                // 2. 相手の通知ボックスにメッセージを追加
+                val notificationData = hashMapOf(
+                    "title" to "いいね！",
+                    "content" to "${myName}さんが「${menuName}」にいいねしました！",
+                    "date" to Timestamp.now()
+                )
+
+                db.collection("users").document(targetUserId)
+                    .collection("notifications")
+                    .add(notificationData)
+            }
     }
 
     private fun updateLikeUI(myUid: String) {
         textDetailLikeCount.text = currentLikedUserIds.size.toString()
         if (currentLikedUserIds.contains(myUid)) {
-            // ★いいね済み：塗りつぶしのハートを表示し、色を赤にする
+            // いいね済み: 塗りつぶしハート(赤)
             iconDetailLike.setImageResource(R.drawable.ic_heart_filled)
             iconDetailLike.setColorFilter(Color.RED)
         } else {
-            // ★未いいね：枠線のハートを表示し、色をグレーにする
+            // 未いいね: 枠線ハート(グレー)
             iconDetailLike.setImageResource(R.drawable.ic_heart_outline)
             iconDetailLike.setColorFilter(Color.parseColor("#CCCCCC"))
         }
@@ -180,7 +214,6 @@ class RecordDetailActivity : AppCompatActivity() {
         val rating = intent.getFloatExtra("RATING", 0f)
         val timestamp = intent.getLongExtra("DATE_TIMESTAMP", 0)
 
-        // Intentからいいねリストを受け取る
         val likedIds = intent.getStringArrayListExtra("LIKED_USER_IDS")
         if (likedIds != null) {
             currentLikedUserIds.clear()
@@ -195,7 +228,6 @@ class RecordDetailActivity : AppCompatActivity() {
             imageUrl = imageUrl,
             isPublic = isPublic,
             rating = rating,
-            // ★エラー回避のため一時的なリストを持たせる（本来はRecord.kt更新で解決）
             likedUserIds = likedIds?.toList() ?: emptyList()
         )
         updateUI(menuName, memo, isPublic, rating, timestamp, imageUrl)
@@ -220,8 +252,7 @@ class RecordDetailActivity : AppCompatActivity() {
                     if (record != null) {
                         currentRecord = record
 
-                        // ★ここが赤文字になる場合、Record.ktの更新が反映されていません
-                        // ステップ2のリビルドを行えば直ります
+                        // データ同期
                         currentLikedUserIds.clear()
                         currentLikedUserIds.addAll(record.likedUserIds)
 
