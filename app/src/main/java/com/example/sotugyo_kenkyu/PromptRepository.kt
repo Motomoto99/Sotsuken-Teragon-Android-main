@@ -10,8 +10,9 @@ object PromptRepository {
     private const val COLLECTION = "ai_prompts"
     private const val DOC_ID = "main"
     private const val FIELD_SYSTEM_PROMPT = "systemPrompt"
+    private const val FIELD_IMAGE_JUDGE_PROMPT = "imageJudgePrompt"
 
-    // ネットワークエラー等のとき用のローカルデフォルト
+    // --- チャット用システムプロンプト（既存） ---
     private val DEFAULT_PROMPT = """
 # システムプロンプト：自炊初心者向け料理アシスタント
 
@@ -80,69 +81,32 @@ object PromptRepository {
 - 専門用語や難しい調理技法を使わない
 - 手順を詰め込みすぎない
 - ユーザーの質問や不安を無視しない
-
-## フォーマット例
-
-### 基本情報の提示（第1段階-1）
-```
-【料理名】ですね！🍳
-
-【基本情報】※1人分の場合
-- 所要時間：約○分
-- 主な食材：○、○、○
-- 必要な調理器具：○、○
-
-何人分作りますか？
-```
-
-### 追加質問（第1段階-2）
-```
-（人数確認後）
-
-ありがとうございます！あと2つ確認させてください。
-1. 苦手な食材やアレルギーはありますか？
-2. 持っている調理器具は？
-```
-
-### 詳細レシピの提示
-```
-【詳しい作り方】
-
-**準備（○分）**
-
-1. ○○を○○する
-
-2. ○○を○○する
-
-
-**調理（○分）**
-
-3. ○○を○○する
-
-4. ○○を○○する（補足説明）
-
-5. ○○を○○する
-
-わからないステップがあれば聞いてくださいね👍
-```
-
-## 追加の質問への対応
-- ユーザーが手順について質問したら、その部分だけ詳しく説明
-- 「○○ってどうやるの？」→具体的な方法を2〜3文で説明
-- 不安そうな場合は「大丈夫、簡単ですよ！」と励ます
-- 代替方法や簡単なやり方があれば提案
-
-## 特記事項
-- ユーザーの経験レベルに合わせて柔軟に対応
-- 失敗を恐れず挑戦できる雰囲気を作る
-- 質問しやすい雰囲気を維持
-- 段階的に料理スキルが上がるようサポート
 """.trimIndent()
 
-    /**
-     * Firestore から systemPrompt を取得する。
-     * 失敗した場合は DEFAULT_PROMPT を返す。
-     */
+    // --- 画像判定用プロンプト（料理かどうか） ---
+    private val DEFAULT_IMAGE_JUDGE_PROMPT = """
+画像を分析し、以下の基準で判定してください。
+
+【yesと判定する条件】
+- 料理、食べ物、飲み物が画像の主な被写体である
+- 食材や調味料が主に写っている
+- レストラン、カフェ、家庭での料理の写真
+- 調理過程の写真
+- 食品パッケージや商品
+- デザートやお菓子
+- 飲料（ドリンク、お酒など）
+
+【noと判定する条件】
+- 人物が主な被写体（食べ物を持っていても人物がメイン）
+- 背景や風景がメイン
+- 動物がメイン
+- 建物や室内（レストラン全体の写真など）
+- その他、食べ物が主題でない画像
+
+判定結果：「yes」または「no」のみで回答してください。
+""".trimIndent()
+
+    /** Firestore から systemPrompt を取得（失敗時は DEFAULT_PROMPT） */
     suspend fun getSystemPrompt(): String {
         return try {
             val snapshot = Firebase.firestore
@@ -155,6 +119,22 @@ object PromptRepository {
         } catch (e: Exception) {
             e.printStackTrace()
             DEFAULT_PROMPT
+        }
+    }
+
+    /** 料理画像判定用プロンプトを取得（失敗時は DEFAULT_IMAGE_JUDGE_PROMPT） */
+    suspend fun getImageJudgePrompt(): String {
+        return try {
+            val snapshot = Firebase.firestore
+                .collection(COLLECTION)
+                .document(DOC_ID)
+                .get()
+                .await()
+
+            snapshot.getString(FIELD_IMAGE_JUDGE_PROMPT) ?: DEFAULT_IMAGE_JUDGE_PROMPT
+        } catch (e: Exception) {
+            e.printStackTrace()
+            DEFAULT_IMAGE_JUDGE_PROMPT
         }
     }
 }
