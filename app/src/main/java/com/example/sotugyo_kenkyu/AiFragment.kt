@@ -156,8 +156,8 @@ class AiFragment : Fragment() {
     }
 
     /** Firestoreから履歴を読み込み、AIセッションにも流し込む */
+    /** Firestoreから履歴を読み込み、AIセッションにも流し込む */
     private suspend fun loadExistingChat(chatId: String) {
-        // ... (既存のコードと同じ) ...
         val list = ChatRepository.loadMessages(chatId)
 
         messages.clear()
@@ -165,10 +165,8 @@ class AiFragment : Fragment() {
         chatAdapter.notifyDataSetChanged()
         scrollToBottom()
 
-        val sessionChat = AiChatSessionManager.ensureSessionInitialized()
-        for (m in list) {
-            sessionChat.sendMessage(m.message)
-        }
+        // ★変更: 履歴を使ってセッションを一括復元（高速化＆アレルギー読み込みスキップ）
+        AiChatSessionManager.startSessionWithHistory(list)
     }
 
     /** メッセージ送信処理 */

@@ -3,7 +3,8 @@ package com.example.sotugyo_kenkyu
 import com.google.firebase.FirebaseApp
 import com.google.firebase.ai.Chat
 import com.google.firebase.ai.FirebaseAI
-// import com.google.firebase.ai.content // ←この行は削除してください
+import com.google.firebase.ai.type.Content // ★追加
+import com.google.firebase.ai.type.content // ★追加
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
@@ -152,6 +153,34 @@ $allergyInfo
         currentChatId = null
         firstUserMessageSent = false
         return newChat
+    }
+
+    /**
+     * ★追加: 過去のチャット履歴からセッションを復元する（アレルギー読み込み・推論なし）
+     */
+    suspend fun startSessionWithHistory(messages: List<ChatMessage>) {
+        // 基本プロンプトのみ取得（アレルギー情報は読み込まない）
+        val systemPrompt = PromptRepository.getSystemPrompt()
+
+        // 履歴オブジェクトを作成
+        val history = mutableListOf<Content>()
+
+        // 1. システムプロンプトを擬似的な履歴として先頭に追加
+        // (これによりAIのキャラクター設定を維持しつつ、通信コストを回避)
+        history.add(content(role = "user") { text(systemPrompt) })
+        history.add(content(role = "model") { text("はい、承知いたしました。") })
+
+        // 2. 実際のチャット履歴を追加
+        messages.forEach { msg ->
+            val role = if (msg.isUser) "user" else "model"
+            history.add(content(role = role) { text(msg.message) })
+        }
+
+        // 履歴付きでチャットを開始（通信は発生しない）
+        chat = generativeModel.startChat(history = history)
+
+        // 既に会話済みなのでフラグはtrue
+        firstUserMessageSent = true
     }
 
     /**
