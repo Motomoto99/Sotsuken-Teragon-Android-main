@@ -14,43 +14,43 @@
         android:theme="@style/Theme.Sotugyo_kenkyu">
 
         <activity
-            android:name=".RecordDetailActivity"
+            android:name=".record.RecordDetailActivity"
             android:exported="false" />
         <activity
-            android:name=".RecordInputActivity"
+            android:name=".record.RecordInputActivity"
             android:exported="false" />
         <activity
-            android:name=".TermsOfServiceActivity"
+            android:name=".account.TermsOfServiceActivity"
             android:exported="false" />
         <activity
-            android:name=".AccountSettingsActivity"
+            android:name=".account.AccountSettingsActivity"
             android:exported="false" />
         <activity
-            android:name=".DataLoadingActivity"
+            android:name=".common.DataLoadingActivity"
             android:exported="false" />
         <activity
-            android:name=".AllergySettingsActivity"
+            android:name=".account.AllergySettingsActivity"
             android:exported="false" />
         <activity
-            android:name=".AdminChatActivity"
+            android:name=".notification.AdminChatActivity"
             android:exported="false" />
         <activity
-            android:name=".ForgotPasswordActivity"
+            android:name=".auth.ForgotPasswordActivity"
             android:exported="false" />
         <activity
-            android:name=".NotificationActivity"
+            android:name=".notification.NotificationActivity"
             android:exported="false" />
         <activity
-            android:name=".HomeActivity"
+            android:name=".home.HomeActivity"
             android:exported="false" />
         <activity
-            android:name=".EmailLoginActivity"
+            android:name=".auth.EmailLoginActivity"
             android:exported="false" />
         <activity
-            android:name=".RegisterActivity"
+            android:name=".auth.RegisterActivity"
             android:exported="false" />
         <activity
-            android:name=".LoginActivity"
+            android:name=".auth.LoginActivity"
             android:exported="true"
             android:theme="@style/Theme.App.Starting">
             <intent-filter>
