@@ -139,17 +139,20 @@
                     android:textSize="24sp"
                     android:textStyle="bold"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toStartOf="@+id/switchPublic"
+                    app:layout_constraintEnd_toStartOf="@+id/textPublicStatus"
                     app:layout_constraintTop_toTopOf="parent" />
 
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/switchPublic"
+                <TextView
+                    android:id="@+id/textPublicStatus"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="公開"
-                    android:textColor="#404040"
+                    android:text="公開中"
                     android:textSize="12sp"
-                    android:clickable="false"
+                    android:textStyle="bold"
+                    android:textColor="#4CAF50"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="8dp"
+                    android:background="@drawable/edit_button_bg"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintTop_toTopOf="@+id/textMenuName"
                     app:layout_constraintBottom_toBottomOf="@+id/textMenuName"/>
