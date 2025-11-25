@@ -3,13 +3,24 @@ package com.example.sotugyo_kenkyu
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-class NotificationAdapter(private val notificationList: List<Notification>) :
-    RecyclerView.Adapter<NotificationAdapter.NotificationViewHolder>() {
+class NotificationAdapter(
+    private val items: List<Notification>
+) : RecyclerView.Adapter<NotificationAdapter.NotificationViewHolder>() {
+
+    class NotificationViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val icon: ImageView = view.findViewById(R.id.iconNotificationSender)
+        val title: TextView = view.findViewById(R.id.textTitle)
+        val content: TextView = view.findViewById(R.id.textContent)
+        val date: TextView = view.findViewById(R.id.textDate)
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): NotificationViewHolder {
         val view = LayoutInflater.from(parent.context)
@@ -18,28 +29,51 @@ class NotificationAdapter(private val notificationList: List<Notification>) :
     }
 
     override fun onBindViewHolder(holder: NotificationViewHolder, position: Int) {
-        val notification = notificationList[position]
-        holder.bind(notification)
-    }
+        val item = items[position]
+        val context = holder.itemView.context
 
-    override fun getItemCount(): Int = notificationList.size
+        holder.title.text = item.title
+        holder.content.text = item.content
 
-    class NotificationViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val title: TextView = itemView.findViewById(R.id.textTitle)
-        private val content: TextView = itemView.findViewById(R.id.textContent)
-        private val date: TextView = itemView.findViewById(R.id.textDate)
+        if (item.date != null) {
+            val sdf = SimpleDateFormat("MM/dd HH:mm", Locale.JAPAN)
+            holder.date.text = sdf.format(item.date.toDate())
+        } else {
+            holder.date.text = ""
+        }
 
-        fun bind(notification: Notification) {
-            title.text = notification.title
-            content.text = notification.content
+        // ★アイコンの切り替えロジック
+        if (item.senderUid != null) {
+            // ユーザーからの通知（いいね等）
+            val db = FirebaseFirestore.getInstance()
+            db.collection("users").document(item.senderUid)
+                .get()
+                .addOnSuccessListener { document ->
+                    if (document.exists()) {
+                        val photoUrl = document.getString("photoUrl")
 
-            if (notification.date != null) {
-                // ★★★ 変更点: 時間も表示するフォーマットに変更 ★★★
-                val sdf = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.JAPAN)
-                date.text = sdf.format(notification.date.toDate())
-            } else {
-                date.text = ""
-            }
+                        if (!photoUrl.isNullOrEmpty()) {
+                            Glide.with(context)
+                                .load(photoUrl)
+                                .circleCrop()
+                                .into(holder.icon)
+                            holder.icon.setPadding(0,0,0,0)
+                        } else {
+                            holder.icon.setImageResource(R.drawable.outline_account_circle_24)
+                            holder.icon.setPadding(1,1,1,1)
+                        }
+                    }
+                }
+            // 読み込み中のデフォルト
+            holder.icon.setImageResource(R.drawable.outline_account_circle_24)
+
+        } else {
+            // 運営からの通知
+            holder.icon.setImageResource(R.drawable.ic_ai) // 運営アイコン
+            holder.icon.setColorFilter(android.graphics.Color.parseColor("#4CAF50")) // 緑色
+            holder.icon.setPadding(8,8,8,8)
         }
     }
+
+    override fun getItemCount(): Int = items.size
 }

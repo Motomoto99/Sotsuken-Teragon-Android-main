@@ -173,7 +173,7 @@ class RecordDetailActivity : AppCompatActivity() {
 
         val db = FirebaseFirestore.getInstance()
 
-        // 1. 自分の名前を取得（「〇〇さんが...」と表示するため）
+        // 1. 自分の名前を取得
         db.collection("users").document(myUid).get()
             .addOnSuccessListener { document ->
                 // 名前が設定されていなければ「誰か」とする
@@ -181,10 +181,12 @@ class RecordDetailActivity : AppCompatActivity() {
                 val menuName = currentRecord?.menuName ?: "料理"
 
                 // 2. 相手の通知ボックスにメッセージを追加
+                // ★アイコン表示のために senderUid を追加
                 val notificationData = hashMapOf(
                     "title" to "いいね！",
                     "content" to "${myName}さんが「${menuName}」にいいねしました！",
-                    "date" to Timestamp.now()
+                    "date" to Timestamp.now(),
+                    "senderUid" to myUid
                 )
 
                 db.collection("users").document(targetUserId)
