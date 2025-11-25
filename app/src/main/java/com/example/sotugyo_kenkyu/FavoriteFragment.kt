@@ -1,5 +1,6 @@
 package com.example.sotugyo_kenkyu
 
+import android.app.AlertDialog
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -9,34 +10,32 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.Job // ★追加
+import kotlinx.coroutines.launch
 
 class FavoriteFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
-    private lateinit var db: FirebaseFirestore
-    private val favoriteList = mutableListOf<Recipe>()
-    private lateinit var adapter: RecipeAdapter
+    private val folderList = mutableListOf<RecipeFolder>()
+    private lateinit var adapter: FolderAdapter
+
+    // ★追加: 読み込み処理を管理する変数
+    private var loadJob: Job? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // 検索画面と同じレイアウトでOKですが、タイトルなどが違うので
-        // もし専用のレイアウト (fragment_favorite.xml) を作っているならそちらを使ってください
-        // ここでは既存のレイアウトを活用する例を書きます
         return inflater.inflate(R.layout.fragment_favorite, container, false)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        val header = view.findViewById<View>(R.id.header) // xmlに追加が必要(後述)
-
-        // WindowInsets調整
+        val header = view.findViewById<View>(R.id.header)
         if (header != null) {
             ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
                 val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -49,71 +48,91 @@ class FavoriteFragment : Fragment() {
         recyclerView = view.findViewById(R.id.recyclerViewFavorites)
         recyclerView.layoutManager = LinearLayoutManager(context)
 
-        db = FirebaseFirestore.getInstance()
-
-        // アダプター設定
-        adapter = RecipeAdapter(
-            favoriteList,
-            onFavoriteClick = { recipe ->
-                // お気に入り画面で星を外したら、リストから消す処理
-                removeFavorite(recipe)
+        adapter = FolderAdapter(
+            folderList,
+            onItemClick = { folder ->
+                openFolderDetail(folder)
             },
-            onItemClick = { recipe ->
-                val fragment = RecipeDetailFragment()
-                val args = Bundle()
-                args.putSerializable("RECIPE_DATA", recipe)
-                fragment.arguments = args
-
-                parentFragmentManager.beginTransaction()
-                    .replace(R.id.fragment_container, fragment)
-                    .addToBackStack(null)
-                    .commit()
+            onDeleteClick = { folder ->
+                showDeleteConfirmDialog(folder)
             }
         )
         recyclerView.adapter = adapter
 
-        loadFavorites()
+        // ここでの loadFolders() は削除し、onResume に任せます
+        // loadFolders()
     }
 
-    private fun loadFavorites() {
-        val user = FirebaseAuth.getInstance().currentUser ?: return
+    override fun onResume() {
+        super.onResume()
+        // 画面が表示されるたびに最新データを読み込む
+        loadFolders()
+    }
 
-        db.collection("users")
-            .document(user.uid)
-            .collection("favorites")
-            .get()
-            .addOnSuccessListener { result ->
-                favoriteList.clear()
-                for (document in result) {
-                    val recipe = document.toObject(Recipe::class.java)
-                    recipe.id = document.id
-                    recipe.isFavorite = true // ここにある時点で絶対にお気に入り
-                    favoriteList.add(recipe)
-                }
+    private fun loadFolders() {
+        // ★ポイント1: 前回の読み込み処理が生きていたらキャンセルする
+        loadJob?.cancel()
+
+        loadJob = lifecycleScope.launch {
+            try {
+                // Firestoreから取得
+                val userFolders = FolderRepository.getFolders()
+
+                // ★ポイント2: リストを完全にクリアしてから作り直す
+                folderList.clear()
+
+                // 先頭に「すべてのお気に入り」を追加
+                folderList.add(RecipeFolder(id = "ALL_FAVORITES", name = "すべてのお気に入り"))
+
+                // 取得したフォルダを追加（念のためIDで重複排除しておく）
+                folderList.addAll(userFolders.distinctBy { it.id })
+
                 adapter.notifyDataSetChanged()
+            } catch (e: Exception) {
+                // キャンセルされた場合のエラーは無視、それ以外は表示
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    Toast.makeText(context, "読み込み失敗: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             }
-            .addOnFailureListener {
-                Toast.makeText(context, "読み込み失敗", Toast.LENGTH_SHORT).show()
-            }
+        }
     }
 
-    private fun removeFavorite(recipe: Recipe) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return
-
-        // DBから削除
-        db.collection("users")
-            .document(user.uid)
-            .collection("favorites")
-            .document(recipe.id)
-            .delete()
-            .addOnSuccessListener {
-                // 画面のリストからも削除して更新
-                val position = favoriteList.indexOf(recipe)
-                if (position != -1) {
-                    favoriteList.removeAt(position)
-                    adapter.notifyItemRemoved(position)
-                }
-                Toast.makeText(context, "お気に入りを解除しました", Toast.LENGTH_SHORT).show()
+    private fun showDeleteConfirmDialog(folder: RecipeFolder) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("フォルダを削除")
+            .setMessage("「${folder.name}」を削除しますか？\n中のレシピは「すべてのお気に入り」には残ります。")
+            .setPositiveButton("削除") { _, _ ->
+                deleteFolder(folder)
             }
+            .setNegativeButton("キャンセル", null)
+            .show()
+    }
+
+    private fun deleteFolder(folder: RecipeFolder) {
+        lifecycleScope.launch {
+            try {
+                FolderRepository.deleteFolder(folder.id)
+
+                // リストから削除して更新
+                folderList.remove(folder)
+                adapter.notifyDataSetChanged()
+
+                Toast.makeText(context, "削除しました", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "削除に失敗しました", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun openFolderDetail(folder: RecipeFolder) {
+        val fragment = FolderDetailFragment()
+        val args = Bundle()
+        args.putSerializable("TARGET_FOLDER", folder)
+        fragment.arguments = args
+
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, fragment)
+            .addToBackStack(null)
+            .commit()
     }
 }

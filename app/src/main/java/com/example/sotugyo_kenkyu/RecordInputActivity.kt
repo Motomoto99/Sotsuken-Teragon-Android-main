@@ -247,22 +247,34 @@ class RecordInputActivity : AppCompatActivity() {
         val db = FirebaseFirestore.getInstance()
         val userRecordsRef = db.collection("users").document(uid).collection("my_records")
 
+        // ★追加: 元の公開状態を取得（Intentから）
+        val originalIsPublic = intent.getBooleanExtra("IS_PUBLIC", false)
+
+        // ★追加: 日付決定ロジック
+        // 「編集モード」かつ「非公開→公開」への変更時のみ、日付を現在時刻に更新する
+        // それ以外（新規作成、公開→公開の修正など）は、画面で設定されている日付（calendar.time）を使用する
+        val dateToSave = if (isEditMode && !originalIsPublic && isPublic) {
+            Timestamp.now()
+        } else {
+            Timestamp(calendar.time)
+        }
+
         if (isEditMode && editRecordId != null) {
             // ★ 更新処理
             val updateData = hashMapOf<String, Any>(
                 "menuName" to menuName,
-                "date" to Timestamp(calendar.time),
+                "date" to dateToSave, // ★ここを修正した変数に変更
                 "memo" to memo,
                 "imageUrl" to imageUrl,
-                "isPublic" to isPublic, // Firestore側も "isPublic" フィールドとして保存
-                "rating" to currentRating // 評価は維持
+                "isPublic" to isPublic,
+                "rating" to currentRating
             )
 
             userRecordsRef.document(editRecordId!!)
                 .update(updateData)
                 .addOnSuccessListener {
                     Toast.makeText(this, "更新しました", Toast.LENGTH_SHORT).show()
-                    finish() // 編集完了時はダイアログを出さずに終了
+                    finish()
                 }
                 .addOnFailureListener { e ->
                     handleSaveError(e)
@@ -273,7 +285,7 @@ class RecordInputActivity : AppCompatActivity() {
             val newRecord = Record(
                 userId = uid,
                 menuName = menuName,
-                date = Timestamp(calendar.time),
+                date = dateToSave, // ★ここを修正した変数に変更
                 memo = memo,
                 imageUrl = imageUrl,
                 isPublic = isPublic,

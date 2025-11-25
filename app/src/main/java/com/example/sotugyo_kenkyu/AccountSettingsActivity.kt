@@ -54,7 +54,6 @@ class AccountSettingsActivity : AppCompatActivity() {
         db = FirebaseFirestore.getInstance()
         storage = FirebaseStorage.getInstance()
 
-        // Viewの取得
         imageViewUserIcon = findViewById(R.id.imageViewUserIcon)
         val buttonEditIcon = findViewById<ImageButton>(R.id.buttonEditIcon)
 
@@ -67,10 +66,9 @@ class AccountSettingsActivity : AppCompatActivity() {
         val header = findViewById<View>(R.id.header)
 
         val menuAllergy = findViewById<View>(R.id.menuAllergySettings)
-        val menuTerms = findViewById<View>(R.id.menuTerms) // ★追加: 利用規約ボタン
+        val menuTerms = findViewById<View>(R.id.menuTerms)
         val menuSignOut = findViewById<View>(R.id.menuSignOut)
 
-        // WindowInsets設定
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
@@ -84,13 +82,11 @@ class AccountSettingsActivity : AppCompatActivity() {
             insets
         }
 
-        // 初期設定
         editTextUsername.isEnabled = false
         editTextUsername.setTextColor(Color.parseColor("#404040"))
 
         loadUserProfile()
 
-        // --- リスナー設定 ---
         backButton.setOnClickListener { finish() }
 
         menuAllergy.setOnClickListener {
@@ -98,7 +94,6 @@ class AccountSettingsActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        // ★追加: 利用規約画面へ遷移
         menuTerms.setOnClickListener {
             val intent = Intent(this, TermsOfServiceActivity::class.java)
             startActivity(intent)
@@ -112,7 +107,6 @@ class AccountSettingsActivity : AppCompatActivity() {
             pickImageLauncher.launch("image/*")
         }
 
-        // ユーザー名編集ロジック
         buttonEditUsername.setOnClickListener {
             editTextUsername.isEnabled = true
             editTextUsername.requestFocus()
@@ -146,27 +140,34 @@ class AccountSettingsActivity : AppCompatActivity() {
             .show()
     }
 
+    // ★★★ 修正: Firestoreのデータを正として読み込む ★★★
     private fun loadUserProfile() {
         val user = auth.currentUser ?: return
 
-        if (user.photoUrl != null) {
-            Glide.with(this)
-                .load(user.photoUrl)
-                .circleCrop()
-                .into(imageViewUserIcon)
-        } else {
-            Glide.with(this)
-                .load(R.drawable.outline_account_circle_24)
-                .circleCrop()
-                .into(imageViewUserIcon)
-        }
+        // まずデフォルトを表示（読み込み待ち）
+        Glide.with(this)
+            .load(R.drawable.outline_account_circle_24)
+            .circleCrop()
+            .into(imageViewUserIcon)
 
         db.collection("users").document(user.uid).get()
             .addOnSuccessListener { document ->
-                val username = document?.getString("username")
-                    ?: user.displayName
-                    ?: "初期ユーザー"
-                editTextUsername.setText(username)
+                if (document != null && document.exists()) {
+                    // 名前
+                    val username = document.getString("username")
+                        ?: user.displayName
+                        ?: "初期ユーザー"
+                    editTextUsername.setText(username)
+
+                    // アイコン (空文字ならデフォルトのまま)
+                    val photoUrl = document.getString("photoUrl")
+                    if (!photoUrl.isNullOrEmpty()) {
+                        Glide.with(this)
+                            .load(photoUrl)
+                            .circleCrop()
+                            .into(imageViewUserIcon)
+                    }
+                }
             }
             .addOnFailureListener {
                 editTextUsername.setText(user.displayName ?: "初期ユーザー")
@@ -198,9 +199,11 @@ class AccountSettingsActivity : AppCompatActivity() {
             .setPhotoUri(uri)
             .build()
 
+        // Auth側のプロファイルも更新しておく（必須ではないが念のため）
         user.updateProfile(profileUpdates)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
+                    // ★ Firestoreを更新
                     val userData = hashMapOf("photoUrl" to uri.toString())
                     db.collection("users").document(user.uid)
                         .set(userData, SetOptions.merge())

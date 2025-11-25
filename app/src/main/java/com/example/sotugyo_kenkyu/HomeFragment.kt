@@ -9,7 +9,6 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
@@ -32,10 +31,6 @@ class HomeFragment : Fragment() {
     private var userListener: ListenerRegistration? = null
     private var currentSnapshots: QuerySnapshot? = null
     private var lastSeenDate: Timestamp? = null
-
-    private lateinit var imageRecommended: ImageView
-    private lateinit var textRecommendedTitle: TextView
-
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -82,13 +77,8 @@ class HomeFragment : Fragment() {
                 .commit()
         }
 
-
-        imageRecommended = view.findViewById(R.id.imageRecommended)
-        textRecommendedTitle = view.findViewById(R.id.textRecommendedTitle)
-
         loadUserIcon()
         loadNotificationIcon()
-        loadRandomRecommendedRecipe() //おすすめランダム表示
     }
 
     override fun onStart() {
@@ -278,40 +268,6 @@ class HomeFragment : Fragment() {
             .circleCrop()
             .diskCacheStrategy(DiskCacheStrategy.ALL)
             .into(notificationIcon)
-    }
-
-    // ランダムおすすめレシピの読み込み ※通信量注意
-    private fun loadRandomRecommendedRecipe() {
-
-        val db = FirebaseFirestore.getInstance()
-        val recipesRef = db.collection("recipes")
-
-        // 全件取得→ランダム抽出例
-        recipesRef.get().addOnSuccessListener { snapshot ->
-            val count = snapshot.size()
-            if (count > 0) {
-                val randomIndex = (0 until count).random()
-                val randomDoc = snapshot.documents[randomIndex]
-                val foodImageUrl = randomDoc.getString("foodImageUrl")
-                val recipeTitle = randomDoc.getString("recipeTitle")
-
-                if (!foodImageUrl.isNullOrEmpty()) {
-                    Glide.with(this)
-                        .load(foodImageUrl)
-                        .placeholder(R.drawable.funa_smile) // 読み込み中画像
-                        .error(R.drawable.funa_smile)       // エラー時の画像
-                        .into(imageRecommended)
-                }
-
-                textRecommendedTitle.text = recipeTitle ?: "読み込めませんでした"
-
-            }else {
-                Toast.makeText(context, "データがありません", Toast.LENGTH_SHORT).show()
-            }
-        }.addOnFailureListener { e ->
-                Toast.makeText(context, "データ取得に失敗しました", Toast.LENGTH_SHORT).show()
-        }
-
     }
 
     private fun startListeners() {
