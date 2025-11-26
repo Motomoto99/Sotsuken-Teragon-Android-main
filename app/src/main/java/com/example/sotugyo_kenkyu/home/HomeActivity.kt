@@ -1,42 +1,43 @@
 package com.example.sotugyo_kenkyu.home
 
 import android.os.Bundle
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
-import com.google.android.material.bottomnavigation.BottomNavigationView
-import androidx.lifecycle.lifecycleScope       // ★ 追加
-import com.example.sotugyo_kenkyu.favorite.FavoriteFragment
+import androidx.lifecycle.lifecycleScope
 import com.example.sotugyo_kenkyu.R
-import com.example.sotugyo_kenkyu.record.RecordFragment
-import com.example.sotugyo_kenkyu.recipe.SearchFragment
 import com.example.sotugyo_kenkyu.ai.AiChatSessionManager
 import com.example.sotugyo_kenkyu.ai.AiFragment
-import kotlinx.coroutines.launch             // ★ 追加
+import com.example.sotugyo_kenkyu.common.TabContainerFragment
+import com.example.sotugyo_kenkyu.favorite.FavoriteFragment
+import com.example.sotugyo_kenkyu.recipe.SearchFragment
+import com.example.sotugyo_kenkyu.record.RecordFragment
+import com.google.android.material.bottomnavigation.BottomNavigationView
+import kotlinx.coroutines.launch
 
 class HomeActivity : AppCompatActivity() {
 
-    // ★ フラグメントのインスタンスを作成
-    private val homeFragment = HomeFragment()
-    private val searchFragment = SearchFragment()
-    private val aiFragment = AiFragment() // ★ 追加
-    private val favoriteFragment = FavoriteFragment() // ★ 追加
-    private val recordFragment = RecordFragment() // ★ 追加
+    // 各タブのコンテナフラグメントを保持するマップ
+    private val tabFragments =  mutableMapOf<Int, TabContainerFragment>()
+
+    // 現在表示中のタブID
+    private var currentTabId: Int = R.id.nav_home
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_home)
 
-        // ★ ログイン後に AI セッションを準備（プロンプト読み込みもここで実行）
+        // AIセッション準備
         lifecycleScope.launch {
             try {
                 AiChatSessionManager.ensureSessionInitialized()
             } catch (e: Exception) {
-                e.printStackTrace() // 必要なら Toast してもOK
+                e.printStackTrace()
             }
         }
 
@@ -48,28 +49,71 @@ class HomeActivity : AppCompatActivity() {
             insets
         }
 
-        // ナビゲーションのクリックリスナー
+        // 初期表示
+        if (savedInstanceState == null) {
+            switchTab(R.id.nav_home)
+            bottomNavigation.selectedItemId = R.id.nav_home
+        }
+
+        // ナビゲーション切替リスナー
         bottomNavigation.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.nav_home -> replaceFragment(homeFragment)
-                R.id.nav_search -> replaceFragment(searchFragment)
-                R.id.nav_ai -> replaceFragment(aiFragment)
-                R.id.nav_favorite -> replaceFragment(favoriteFragment)
-                R.id.nav_record -> replaceFragment(recordFragment)
-            }
+            switchTab(item.itemId)
             true
         }
 
-        // 起動時にHomeFragmentをデフォルトで表示
-        if (savedInstanceState == null) {
-            bottomNavigation.selectedItemId = R.id.nav_home
-        }
+        // 戻るボタンの挙動を制御（タブ内の履歴があればそれを戻る）
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val currentFragment = tabFragments[currentTabId]
+                // 現在のタブの中で戻れる履歴があるか確認
+                if (currentFragment != null && currentFragment.canGoBack()) {
+                    currentFragment.goBack()
+                } else {
+                    // 履歴がなければアプリ終了（またはデフォルトの挙動）
+                    // ホーム以外にいる場合はホームに戻すというUXも一般的ですが、今回は終了にします
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
     }
 
-    // フラグメント切り替え関数
-    private fun replaceFragment(fragment: Fragment) {
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.fragment_container, fragment) // ← ChatList/AiFragment側もこのIDに合わせる
-            .commit()
+    private fun switchTab(tabId: Int) {
+        val transaction = supportFragmentManager.beginTransaction()
+
+        // 1. 現在表示されているタブがあれば隠す
+        val currentFragment = tabFragments[currentTabId]
+        if (currentFragment != null) {
+            transaction.hide(currentFragment)
+        }
+
+        // 2. 次に表示するタブを取得（なければ作成）
+        var targetFragment = tabFragments[tabId]
+        if (targetFragment == null) {
+            // 初回作成時
+            targetFragment = createTabFragment(tabId)
+            tabFragments[tabId] = targetFragment
+            // activity_home.xml で変更したID (main_nav_container) に追加
+            transaction.add(R.id.main_nav_container, targetFragment, tabId.toString())
+        } else {
+            // 既存なら表示
+            transaction.show(targetFragment)
+        }
+
+        transaction.commit()
+        currentTabId = tabId
+    }
+
+    // タブIDに対応するルートフラグメントを指定してコンテナを作成
+    private fun createTabFragment(tabId: Int): TabContainerFragment {
+        val rootClass = when (tabId) {
+            R.id.nav_home -> HomeFragment::class.java
+            R.id.nav_search -> SearchFragment::class.java
+            R.id.nav_ai -> AiFragment::class.java
+            R.id.nav_favorite -> FavoriteFragment::class.java
+            R.id.nav_record -> RecordFragment::class.java
+            else -> HomeFragment::class.java
+        }
+        return TabContainerFragment.newInstance(rootClass)
     }
 }

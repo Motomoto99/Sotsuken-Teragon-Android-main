@@ -14,12 +14,14 @@ import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.sotugyo_kenkyu.ImageResultFragment
 import com.example.sotugyo_kenkyu.R
 
 class SearchFragment : Fragment() {
 
-    // 1. 画像選択の結果を受け取るランチャー
-    // ギャラリーを開き、画像が選択されるとここに戻ってきます
+    // ★★★ 画像選択の結果を受け取るランチャー ★★★
+    // ポイント：この定義は必ず「クラスの直下（一番上）」に置いてください。
+    // これで "Attempting to launch an unregistered..." エラーを防ぎます。
     private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
             // 画像が選択されたら、遷移処理メソッドを呼び出す
@@ -37,7 +39,7 @@ class SearchFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // --- ステータスバーの余白調整 ---
+        // --- 1. ステータスバーの余白調整 ---
         val searchTopBar = view.findViewById<ConstraintLayout>(R.id.searchTopBar)
         ViewCompat.setOnApplyWindowInsetsListener(searchTopBar) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -46,21 +48,23 @@ class SearchFragment : Fragment() {
             insets
         }
 
-        // --- カメラ検索ボタンの処理 ---
+        // --- 2. カメラ検索ボタンの処理 ---
         val btnCameraSearch = view.findViewById<LinearLayout>(R.id.btnCameraSearch)
         btnCameraSearch.setOnClickListener {
-            // 2. ボタンが押されたら画像選択画面(ギャラリー等)を開く
+            // ボタンが押されたら画像選択画面(ギャラリー等)を開く
             pickImageLauncher.launch("image/*")
         }
 
-        // --- カテゴリー一覧の設定 ---
+        // --- 3. カテゴリー一覧の設定 ---
         val recyclerView = view.findViewById<RecyclerView>(R.id.recyclerCategory)
         recyclerView.layoutManager = LinearLayoutManager(context)
 
+        // データリストの取得（絵文字付き）
         val categoryList = getCategoryData()
 
         recyclerView.adapter = CategoryAdapter(categoryList) { category ->
             if (category.isOther) {
+                // 中分類がないカテゴリ（レシピ一覧へ直行）
                 val fragment = RecipeListFragment()
                 val args = Bundle()
                 args.putString("CATEGORY_ID", category.apiId)
@@ -72,6 +76,7 @@ class SearchFragment : Fragment() {
                     .addToBackStack(null)
                     .commit()
             } else {
+                // 通常のカテゴリ（中分類画面へ）
                 val fragment = SubCategoryFragment()
                 val args = Bundle()
                 args.putString("PARENT_ID", category.apiId)
@@ -86,25 +91,23 @@ class SearchFragment : Fragment() {
         }
     }
 
-    // ★ 3. 画像検索結果画面への遷移処理（実装済み）
+    // --- 画像検索結果画面への遷移処理 ---
     private fun navigateToImageSearchResult(imageUri: Uri) {
-        // 移動先のFragmentを作る (※ImageResultFragmentクラスを作成しておく必要があります)
         val fragment = ImageResultFragment()
 
         // 画像の情報を渡すためのバンドルを作る
         val args = Bundle()
-        args.putString("IMAGE_URI", imageUri.toString()) // URIを文字列にして渡す
+        args.putString("IMAGE_URI", imageUri.toString())
         fragment.arguments = args
 
-        // 画面を切り替える
         parentFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, fragment)
             .addToBackStack(null)
             .commit()
     }
 
+    // --- カテゴリーデータの生成 ---
     private fun getCategoryData(): List<CategoryData> {
-        val defaultImg = R.drawable.ic_launcher_background
         return listOf(
             CategoryData("10", "お肉", null, "🍖"),
             CategoryData("11", "魚介", null, "🐟"),
@@ -117,6 +120,7 @@ class SearchFragment : Fragment() {
             CategoryData("23", "鍋料理", null, "🍲"),
             CategoryData("21", "お菓子", null, "🍩"),
             CategoryData("22", "パン", null, "🍞"),
+            // グループ系設定（中分類なし）
             CategoryData("GROUP_WORLD", "世界の料理", null, "🌍", false),
             CategoryData("GROUP_EVENTS", "行事・イベント", null, "🎉", false)
         )

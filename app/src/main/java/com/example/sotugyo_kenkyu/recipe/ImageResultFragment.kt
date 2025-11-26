@@ -1,9 +1,10 @@
-package com.example.sotugyo_kenkyu.recipe
+package com.example.sotugyo_kenkyu
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.util.Base64
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,26 +14,35 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import com.example.sotugyo_kenkyu.R
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
+import com.example.sotugyo_kenkyu.recipe.RecipeListFragment // ※パッケージ構成に合わせて調整してください
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.util.concurrent.TimeUnit
+// ★ BuildConfigをインポート（赤字なら一度 Rebuild Project してください）
+import com.example.sotugyo_kenkyu.BuildConfig
 
 class ImageResultFragment : Fragment() {
 
     private var selectedUriString: String? = null
 
-    // ★ここにGoogle AI Studioで取得したAPIキーを入れてください
-    private val apiKey = "AIzaSyCKu_ilU4mAeqan30b_LRAx-jcIyvnEnPE"
+    // ★★★ 安全にAPIキーを読み込みます ★★★
+    // local.properties に書いた GEMINI_API_KEY がここで使われます
+    private val apiKey = BuildConfig.GEMINI_API_KEY
 
-    // Geminiモデルの初期化 (高速な gemini-1.5-flash を使用)
-    private val generativeModel = GenerativeModel(
-        modelName = "gemini-2.5-pro",
-        apiKey = apiKey
-    )
+    // 通信クライアント (OkHttp)
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS) // タイムアウトを30秒に設定
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -44,13 +54,14 @@ class ImageResultFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // 前画面から画像のURIを受け取る
         selectedUriString = arguments?.getString("IMAGE_URI")
+
         val imageView = view.findViewById<ImageView>(R.id.selectedImageView)
-        val txtMessage = view.findViewById<TextView>(R.id.txtMessage)
         val btnSearchAction = view.findViewById<Button>(R.id.btnSearchAction)
         val btnCancel = view.findViewById<Button>(R.id.btnCancel)
 
-        // 画像表示
+        // 画像を表示
         if (selectedUriString != null) {
             imageView.setImageURI(Uri.parse(selectedUriString))
         }
@@ -63,86 +74,175 @@ class ImageResultFragment : Fragment() {
         // 検索ボタン
         btnSearchAction.setOnClickListener {
             if (selectedUriString != null) {
-                // UIの更新（ボタンを無効化し、メッセージを変更）
+                // UI更新（連打防止）
                 btnSearchAction.isEnabled = false
                 btnSearchAction.text = "解析中..."
-                txtMessage.text = "Geminiが画像を分析しています..."
+                view.findViewById<TextView>(R.id.txtMessage).text = "AIに問い合わせています..."
 
                 // 解析開始
-                analyzeImageWithGemini(Uri.parse(selectedUriString!!))
+                analyzeImageDirectly(Uri.parse(selectedUriString!!))
             }
         }
     }
 
-    private fun analyzeImageWithGemini(uri: Uri) {
-        // コルーチンを開始（非同期処理）
+    // ★ Gemini API (REST) を直接叩く処理
+    private fun analyzeImageDirectly(uri: Uri) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // 1. 画像をBitmap形式に変換
+                // 1. 画像をリサイズして取得（メモリ不足対策）
                 val bitmap = uriToBitmap(uri)
+                if (bitmap == null) {
+                    showError("画像の読み込みに失敗しました")
+                    return@launch
+                }
 
-                if (bitmap != null) {
-                    // 2. Geminiへの入力データを作成
-                    val inputContent = content {
-                        image(bitmap)
-                        text("この画像の料理名は何ですか？料理名だけを答えてください。（例：カレーライス）もし料理でなければ「料理ではありません」と答えてください。")
-                    }
+                // 2. 画像をBase64文字列に変換
+                val base64Image = bitmapToBase64(bitmap)
 
-                    // 3. Geminiに送信して回答を待つ
-                    val response = generativeModel.generateContent(inputContent)
-                    val resultText = response.text ?: "判定できませんでした"
+                // 3. 送信するJSONデータを作成
+                val jsonBody = JSONObject()
+                val contentsArray = JSONArray()
+                val contentObject = JSONObject()
+                val partsArray = JSONArray()
 
-                    // 4. メインスレッド（画面）に戻って結果を表示
-                    withContext(Dispatchers.Main) {
-                        showResult(resultText)
+                // プロンプト（質問）
+                val textPart = JSONObject()
+                textPart.put("text", "この画像の料理名は何ですか？料理名だけを単語で答えてください。（例：カレーライス）。料理でなければ「判定不能」と答えてください。")
+                partsArray.put(textPart)
+
+                // 画像データ
+                val imagePart = JSONObject()
+                val inlineData = JSONObject()
+                inlineData.put("mime_type", "image/jpeg")
+                inlineData.put("data", base64Image)
+                imagePart.put("inline_data", inlineData)
+                partsArray.put(imagePart)
+
+                contentObject.put("parts", partsArray)
+                contentsArray.put(contentObject)
+                jsonBody.put("contents", contentsArray)
+
+                // 4. HTTPリクエストを作成 (Gemini 1.5 Flashを使用)
+                val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey"
+
+                val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
+                val request = Request.Builder()
+                    .url(url)
+                    .post(requestBody)
+                    .build()
+
+                // 5. 送信実行
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string()
+
+                if (response.isSuccessful && responseBody != null) {
+                    // JSONから答えを取り出す
+                    val jsonResponse = JSONObject(responseBody)
+                    val candidates = jsonResponse.optJSONArray("candidates")
+                    if (candidates != null && candidates.length() > 0) {
+                        val firstCandidate = candidates.getJSONObject(0)
+                        val content = firstCandidate.optJSONObject("content")
+                        val parts = content?.optJSONArray("parts")
+                        val text = parts?.getJSONObject(0)?.optString("text")?.trim() ?: "判定なし"
+
+                        // 成功！結果を表示
+                        withContext(Dispatchers.Main) {
+                            showResult(text)
+                        }
+                    } else {
+                        showError("AIからの応答が空でした")
                     }
                 } else {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "画像の読み込みに失敗しました", Toast.LENGTH_SHORT).show()
-                        resetButtonState()
+                    // エラーハンドリング
+                    val errorMsg = if (response.code == 429) {
+                        "利用制限（混雑）のため、少し時間を置いてください"
+                    } else {
+                        "通信エラー: ${response.code}"
                     }
+                    showError(errorMsg)
                 }
 
             } catch (e: Exception) {
                 e.printStackTrace()
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "エラーが発生しました: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-                    resetButtonState()
-                }
+                showError("エラー: ${e.localizedMessage}")
             }
         }
     }
 
-    // 結果を受け取った後の処理
-    private fun showResult(dishName: String) {
-        // 画面のメッセージを更新
-        val txtMessage = view?.findViewById<TextView>(R.id.txtMessage)
-        txtMessage?.text = "判定結果: $dishName"
-
-        // トーストも出す
+    // 解析結果を受け取り、次の画面へ遷移する処理
+    private suspend fun showResult(dishName: String) = withContext(Dispatchers.Main) {
         Toast.makeText(context, "「$dishName」が見つかりました！", Toast.LENGTH_LONG).show()
 
-        // ここで navigateToSearchResult(dishName) を呼べば、
-        // その料理名でレシピ検索画面へ遷移できます
+        // 検索結果画面（RecipeListFragment）へ遷移
+        val fragment = RecipeListFragment()
+        val args = Bundle()
+        // 検索ワードとして料理名を渡す
+        args.putString("SEARCH_QUERY", dishName)
+        fragment.arguments = args
 
-        // ボタンを元に戻す
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, fragment)
+            .addToBackStack(null)
+            .commit()
+
         resetButtonState()
     }
 
-    private fun resetButtonState() {
-        val btnSearchAction = view?.findViewById<Button>(R.id.btnSearchAction)
-        btnSearchAction?.isEnabled = true
-        btnSearchAction?.text = "検索する"
+    // エラー表示処理
+    private suspend fun showError(msg: String) = withContext(Dispatchers.Main) {
+        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        view?.findViewById<TextView>(R.id.txtMessage)?.text = "エラーが発生しました"
+        resetButtonState()
     }
 
-    // UriからBitmapに変換する補助関数
-    private fun uriToBitmap(uri: Uri): Bitmap? {
-        return try {
-            val inputStream: InputStream? = requireContext().contentResolver.openInputStream(uri)
-            BitmapFactory.decodeStream(inputStream)
+    // ボタンの状態を元に戻す
+    private fun resetButtonState() {
+        val btn = view?.findViewById<Button>(R.id.btnSearchAction)
+        btn?.isEnabled = true
+        btn?.text = "検索する"
+    }
+
+    // BitmapをBase64文字列に変換する関数
+    private fun bitmapToBase64(bitmap: Bitmap): String {
+        val outputStream = ByteArrayOutputStream()
+        // JPEG品質70%で圧縮（サイズ軽量化のため）
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+        val byteArray = outputStream.toByteArray()
+        return Base64.encodeToString(byteArray, Base64.NO_WRAP)
+    }
+
+    // 画像をURIから読み込み、メモリ不足にならないようリサイズする関数
+    private suspend fun uriToBitmap(uri: Uri): Bitmap? = withContext(Dispatchers.IO) {
+        var inputStream: InputStream? = null
+        try {
+            val resolver = requireContext().contentResolver
+            inputStream = resolver.openInputStream(uri)
+
+            // まず画像のサイズだけを読み込む（メモリには展開しない）
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeStream(inputStream, null, options)
+            inputStream?.close()
+
+            // リサイズ比率を計算（長辺が800px以下になるように）
+            val maxDimension = 800
+            var sampleSize = 1
+            while ((options.outHeight / sampleSize) > maxDimension || (options.outWidth / sampleSize) > maxDimension) {
+                sampleSize *= 2
+            }
+
+            // 計算したサイズで実際に画像を読み込む
+            val finalOptions = BitmapFactory.Options().apply {
+                inJustDecodeBounds = false
+                inSampleSize = sampleSize
+            }
+            inputStream = resolver.openInputStream(uri)
+            val bitmap = BitmapFactory.decodeStream(inputStream, null, finalOptions)
+            return@withContext bitmap
         } catch (e: Exception) {
             e.printStackTrace()
-            null
+            return@withContext null
+        } finally {
+            inputStream?.close()
         }
     }
 }

@@ -1,3 +1,4 @@
+import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -17,11 +18,27 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+        multiDexEnabled = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         vectorDrawables.useSupportLibrary = true
+
+        val properties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            properties.load(localPropertiesFile.inputStream())
+        }
+        val apiKey = properties.getProperty("GEMINI_API_KEY") ?: ""
+
+        // アプリ全体で BuildConfig.GEMINI_API_KEY として使えるようにする
+        buildConfigField("String", "GEMINI_API_KEY", "\"$apiKey\"")
     }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
 
     buildTypes {
         release {
@@ -80,12 +97,9 @@ dependencies {
     // ★★★ 追加: 下に引っ張って更新するためのライブラリ ★★★
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
-    // Google AI SDK (Gemini)
-    implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
+// ★REST API通信用 (OkHttp)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
-    // コルーチン (非同期処理用。もし既にあれば不要です)
+    // コルーチン
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
-
-
 }
