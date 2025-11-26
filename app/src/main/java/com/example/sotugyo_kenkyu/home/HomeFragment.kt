@@ -1,5 +1,6 @@
 package com.example.sotugyo_kenkyu.home
 
+import com.example.sotugyo_kenkyu.recipe.Recipe
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -9,6 +10,7 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
@@ -22,6 +24,7 @@ import com.example.sotugyo_kenkyu.notification.Notification
 import com.example.sotugyo_kenkyu.notification.NotificationActivity
 import com.example.sotugyo_kenkyu.record.PublicRecordsFragment
 import com.example.sotugyo_kenkyu.R
+import com.example.sotugyo_kenkyu.recipe.RecipeDetailFragment
 import com.example.sotugyo_kenkyu.record.Record
 import com.example.sotugyo_kenkyu.record.RecordDetailActivity
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -34,12 +37,9 @@ import com.google.firebase.firestore.QuerySnapshot
 
 class HomeFragment : Fragment() {
 
-    private var globalNotificationListener: ListenerRegistration? = null
-    private var personalNotificationListener: ListenerRegistration? = null
+    private var notificationListener: ListenerRegistration? = null
     private var userListener: ListenerRegistration? = null
-
-    private var globalSnapshots: QuerySnapshot? = null
-    private var personalSnapshots: QuerySnapshot? = null
+    private var currentSnapshots: QuerySnapshot? = null
     private var lastSeenDate: Timestamp? = null
 
     private var myRecordList: List<Record> = emptyList()
@@ -98,6 +98,7 @@ class HomeFragment : Fragment() {
 
         loadUserIcon()
         loadNotificationIcon()
+        recommend_recipe()
     }
 
     override fun onStart() {
@@ -171,13 +172,12 @@ class HomeFragment : Fragment() {
         }
     }
 
-    // ★修正: みんなの投稿を "postedAt" 順で取得
     private fun loadEveryoneRecords() {
         val db = FirebaseFirestore.getInstance()
 
         db.collectionGroup("my_records")
             .whereEqualTo("isPublic", true)
-            .orderBy("postedAt", Query.Direction.DESCENDING) // ★変更
+            .orderBy("date", Query.Direction.DESCENDING)
             .limit(2)
             .get()
             .addOnSuccessListener { documents ->
@@ -247,21 +247,25 @@ class HomeFragment : Fragment() {
         context.startActivity(intent)
     }
 
+    // ★★★ 修正: FirestoreからアイコンURLを取得して表示する ★★★
     private fun loadUserIcon() {
         val view = view ?: return
         val userIcon: ImageButton = view.findViewById(R.id.iconUser)
         val user = FirebaseAuth.getInstance().currentUser ?: return
         val db = FirebaseFirestore.getInstance()
 
+        // まずはデフォルトアイコンを表示しておく（読み込み中のチラつき防止）
         Glide.with(this)
             .load(R.drawable.outline_account_circle_24)
             .circleCrop()
             .into(userIcon)
 
+        // Firestoreから最新情報を取得
         db.collection("users").document(user.uid).get()
             .addOnSuccessListener { document ->
                 if (document != null && document.exists()) {
                     val photoUrl = document.getString("photoUrl")
+                    // FirestoreにURLが保存されており、かつ空文字でない場合のみ読み込む
                     if (!photoUrl.isNullOrEmpty()) {
                         Glide.with(this)
                             .load(photoUrl)
@@ -269,6 +273,7 @@ class HomeFragment : Fragment() {
                             .diskCacheStrategy(DiskCacheStrategy.ALL)
                             .into(userIcon)
                     }
+                    // 空文字の場合はデフォルトのまま（初期ユーザー状態）
                 }
             }
     }
@@ -298,23 +303,12 @@ class HomeFragment : Fragment() {
                 }
         }
 
-        if (globalNotificationListener == null) {
-            globalNotificationListener = db.collection("notifications")
+        if (notificationListener == null) {
+            notificationListener = db.collection("notifications")
                 .addSnapshotListener { snapshots, e ->
-                    if (e == null && snapshots != null) {
-                        globalSnapshots = snapshots
-                        recalculateBadge()
-                    }
-                }
-        }
-
-        if (personalNotificationListener == null) {
-            personalNotificationListener = db.collection("users")
-                .document(user.uid)
-                .collection("notifications")
-                .addSnapshotListener { snapshots, e ->
-                    if (e == null && snapshots != null) {
-                        personalSnapshots = snapshots
+                    if (e != null) return@addSnapshotListener
+                    if (snapshots != null) {
+                        currentSnapshots = snapshots
                         recalculateBadge()
                     }
                 }
@@ -324,31 +318,23 @@ class HomeFragment : Fragment() {
     private fun stopListeners() {
         userListener?.remove()
         userListener = null
-
-        globalNotificationListener?.remove()
-        globalNotificationListener = null
-
-        personalNotificationListener?.remove()
-        personalNotificationListener = null
+        notificationListener?.remove()
+        notificationListener = null
     }
 
     private fun recalculateBadge() {
         val view = view ?: return
         val badge: TextView = view.findViewById(R.id.textNotificationBadge)
+        val snapshots = currentSnapshots ?: return
 
         val threshold = lastSeenDate?.toDate()?.time ?: 0L
+
         var unreadCount = 0
+        for (document in snapshots) {
+            val notification = document.toObject(Notification::class.java)
+            val date = notification.date
 
-        globalSnapshots?.forEach { doc ->
-            val n = doc.toObject(Notification::class.java)
-            if (n.date != null && n.date.toDate().time > threshold) {
-                unreadCount++
-            }
-        }
-
-        personalSnapshots?.forEach { doc ->
-            val n = doc.toObject(Notification::class.java)
-            if (n.date != null && n.date.toDate().time > threshold) {
+            if (date != null && date.toDate().time > threshold) {
                 unreadCount++
             }
         }
@@ -359,5 +345,62 @@ class HomeFragment : Fragment() {
         } else {
             badge.visibility = View.GONE
         }
+    }
+
+    private fun recommend_recipe() {
+        val view = view ?: return
+        val recommend_image: ImageView = view.findViewById(R.id.imageRecommended)
+        val recommend_text: TextView = view.findViewById(R.id.textRecommendedTitle)
+
+        val db = FirebaseFirestore.getInstance()
+        db.collection("recommend") // recommendコレクションを参照
+            .get()
+            .addOnSuccessListener { queryDocumentSnapshots ->
+                // ドキュメントが空でないかチェック
+                if (!queryDocumentSnapshots.isEmpty) {
+                    val size = queryDocumentSnapshots.size()
+                    // 0 から size-1 の範囲でランダムなインデックスを生成
+                    val randomIndex = (0 until size).random()
+                    val doc = queryDocumentSnapshots.documents[randomIndex]
+
+                    // ★重要: ドキュメントをRecipeクラスのオブジェクトに変換
+                    val recipe = doc.toObject(Recipe::class.java)
+
+                    if (recipe != null) {
+                        // ドキュメントIDをセット（詳細画面でのお気に入り登録などで使うため）
+                        recipe.id = doc.id
+
+                        // UIへの表示
+                        recommend_text.text = recipe.recipeTitle
+                        if (recipe.foodImageUrl.isNotEmpty()) {
+                            Glide.with(this)
+                                .load(recipe.foodImageUrl)
+                                .into(recommend_image)
+                        } else {
+                            recommend_image.setImageResource(R.drawable.funa_smile)
+                        }
+
+                        // ★クリックリスナーの実装（データ取得後にセットする）
+                        recommend_image.setOnClickListener {
+                            // 詳細画面のフラグメントを作成
+                            val fragment = RecipeDetailFragment()
+
+                            // データを渡すためのBundleを作成
+                            val args = Bundle()
+                            args.putSerializable("RECIPE_DATA", recipe)
+                            fragment.arguments = args
+
+                            // 画面遷移を実行
+                            parentFragmentManager.beginTransaction()
+                                .replace(R.id.fragment_container, fragment)
+                                .addToBackStack(null) // 戻るボタンで戻れるように履歴に追加
+                                .commit()
+                        }
+                    }
+                }
+            }
+            .addOnFailureListener {
+                Toast.makeText(requireContext(), "データ取得に失敗しました", Toast.LENGTH_SHORT).show()
+            }
     }
 }
