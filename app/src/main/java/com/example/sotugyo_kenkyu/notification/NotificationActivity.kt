@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import androidx.lifecycle.lifecycleScope // 追加
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -21,6 +22,11 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.Dispatchers // 追加
+import kotlinx.coroutines.async // 追加
+import kotlinx.coroutines.awaitAll // 追加
+import kotlinx.coroutines.launch // 追加
+import kotlinx.coroutines.tasks.await // 追加
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -172,15 +178,24 @@ class NotificationActivity : AppCompatActivity() {
             // 新しい順にソート
             likeMessages.sortByDescending { it.date?.toDate()?.time ?: 0 }
 
-            recyclerViewNotifications.adapter = NotificationAdapter(likeMessages)
-            recyclerViewNotifications.visibility = View.VISIBLE
-            textNoNotification.visibility = View.GONE
+            // ★修正点: ここで送信者のアイコン情報を一括取得する
+            lifecycleScope.launch {
+                // 1. 通知に含まれる送信者ID(重複なし)をリスト化
+                val senderUids = likeMessages.mapNotNull { it.senderUid }.distinct()
+
+                // 2. 非同期で一括取得
+                val iconMap = fetchUserIcons(senderUids)
+
+                // 3. マップをAdapterに渡して表示
+                recyclerViewNotifications.adapter = NotificationAdapter(likeMessages, iconMap)
+                recyclerViewNotifications.visibility = View.VISIBLE
+                textNoNotification.visibility = View.GONE
+            }
 
             // いいね通知が最新なら既読更新
             val user = FirebaseAuth.getInstance().currentUser
             val latestDate = likeMessages[0].date
             if (user != null && latestDate != null) {
-                // ※本来はAdminChat側の未読も考慮すべきですが、簡易的にここで更新します
                 val db = FirebaseFirestore.getInstance()
                 val updateData = hashMapOf("lastSeenNotificationDate" to latestDate)
                 db.collection("users").document(user.uid).set(updateData, SetOptions.merge())
@@ -189,5 +204,34 @@ class NotificationActivity : AppCompatActivity() {
             recyclerViewNotifications.visibility = View.GONE
             textNoNotification.visibility = View.VISIBLE
         }
+    }
+
+    // ★追加: ユーザーIDのリストからアイコンURLを一括取得する関数
+    private suspend fun fetchUserIcons(uids: List<String>): Map<String, String> {
+        val db = FirebaseFirestore.getInstance()
+        val resultMap = mutableMapOf<String, String>()
+
+        // 複数の通信処理を並列（同時）に実行
+        val deferreds = uids.map { uid ->
+            lifecycleScope.async(Dispatchers.IO) {
+                try {
+                    val doc = db.collection("users").document(uid).get().await()
+                    val url = doc.getString("photoUrl")
+                    if (!url.isNullOrEmpty()) {
+                        uid to url // IDとURLのペアを返す
+                    } else {
+                        null
+                    }
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        }
+
+        // 全ての結果を待機してMapに格納
+        deferreds.awaitAll().filterNotNull().forEach { (uid, url) ->
+            resultMap[uid] = url
+        }
+        return resultMap
     }
 }
