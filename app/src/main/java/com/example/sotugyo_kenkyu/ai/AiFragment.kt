@@ -9,7 +9,6 @@ import android.widget.ImageButton
 import android.widget.Toast
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -17,6 +16,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.sotugyo_kenkyu.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import androidx.core.view.updateLayoutParams
+import android.content.Context
+import android.view.inputmethod.InputMethodManager
+import androidx.core.view.updateLayoutParams
 
 class AiFragment : Fragment() {
 
@@ -63,11 +66,27 @@ class AiFragment : Fragment() {
 
         val header = view.findViewById<View>(R.id.header)
 
+        //AIチャットで入力欄を動的に移動させるときに追加
+        val layoutInput = view.findViewById<View>(R.id.layoutInput)
+        val bottomNav = requireActivity().findViewById<View>(R.id.bottomNavigation)
+
         // ステータスバー分をヘッダーに足す
-        ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
-            v.updatePadding(top = systemBars.top + originalPaddingTop)
+        ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets ->
+            val isImeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val bottomNav = requireActivity().findViewById<View>(R.id.bottomNavigation)
+            val bottomNavHeight = bottomNav?.height ?: 0
+
+            val targetBottomMargin = if (isImeVisible) {
+                (imeHeight - bottomNavHeight).coerceAtLeast(0)
+            } else {
+                0
+            }
+
+            layoutInput.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                this.bottomMargin = targetBottomMargin
+            }
+
             insets
         }
 
@@ -114,7 +133,11 @@ class AiFragment : Fragment() {
         }
 
         // 送信
-        buttonSend.setOnClickListener { sendMessage() }
+        buttonSend.setOnClickListener {
+            hideKeyboard()
+            sendMessage()
+
+        }
 
         // チャット一覧へ
         buttonChatList.setOnClickListener { openChatList() }
@@ -246,5 +269,17 @@ class AiFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         recyclerView.adapter = null
+    }
+
+    //送信後に、キーボードを自動で閉じるようにする関数
+    private fun hideKeyboard() {
+        val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        // フォーカスがあるビュー、なければ画面全体のトークンを使用
+        val currentFocus = activity?.currentFocus ?: view
+        currentFocus?.let {
+            imm.hideSoftInputFromWindow(it.windowToken, 0)
+        }
+        // フォーカスを入力欄から外して、カーソルの点滅などを消したい場合は以下も追加
+        editTextMessage.clearFocus()
     }
 }
