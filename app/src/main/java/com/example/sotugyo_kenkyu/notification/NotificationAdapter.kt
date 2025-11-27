@@ -9,12 +9,13 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.sotugyo_kenkyu.R
-import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+// ★修正点1: ユーザー情報のマップ(ID -> 画像URL)を受け取るように変更
 class NotificationAdapter(
-    private val items: List<Notification>
+    private val items: List<Notification>,
+    private val userIconMap: Map<String, String>
 ) : RecyclerView.Adapter<NotificationAdapter.NotificationViewHolder>() {
 
     class NotificationViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -44,36 +45,28 @@ class NotificationAdapter(
             holder.date.text = ""
         }
 
-        // ★アイコンの切り替えロジック
+        // ★修正点2: データベース通信を削除し、マップからURLを取得して表示
         if (item.senderUid != null) {
-            // ユーザーからの通知（いいね等）
-            val db = FirebaseFirestore.getInstance()
-            db.collection("users").document(item.senderUid)
-                .get()
-                .addOnSuccessListener { document ->
-                    if (document.exists()) {
-                        val photoUrl = document.getString("photoUrl")
+            // マップから画像URLを探す
+            val photoUrl = userIconMap[item.senderUid]
 
-                        if (!photoUrl.isNullOrEmpty()) {
-                            Glide.with(context)
-                                .load(photoUrl)
-                                .circleCrop()
-                                .into(holder.icon)
-                            holder.icon.setPadding(0,0,0,0)
-                        } else {
-                            holder.icon.setImageResource(R.drawable.outline_account_circle_24)
-                            holder.icon.setPadding(1,1,1,1)
-                        }
-                    }
-                }
-            // 読み込み中のデフォルト
-            holder.icon.setImageResource(R.drawable.outline_account_circle_24)
+            if (!photoUrl.isNullOrEmpty()) {
+                Glide.with(context)
+                    .load(photoUrl)
+                    .circleCrop()
+                    .into(holder.icon)
+                holder.icon.setPadding(0, 0, 0, 0)
+            } else {
+                // 画像がない場合のデフォルト
+                holder.icon.setImageResource(R.drawable.outline_account_circle_24)
+                holder.icon.setPadding(1, 1, 1, 1)
+            }
 
         } else {
             // 運営からの通知
-            holder.icon.setImageResource(R.drawable.ic_ai) // 運営アイコン
-            holder.icon.setColorFilter(Color.parseColor("#4CAF50")) // 緑色
-            holder.icon.setPadding(8,8,8,8)
+            holder.icon.setImageResource(R.drawable.ic_ai)
+            holder.icon.setColorFilter(Color.parseColor("#4CAF50"))
+            holder.icon.setPadding(8, 8, 8, 8)
         }
     }
 

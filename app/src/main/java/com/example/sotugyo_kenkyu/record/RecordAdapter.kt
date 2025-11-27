@@ -45,11 +45,13 @@ class RecordAdapter(
         if (item.imageUrl.isNotEmpty()) {
             Glide.with(holder.itemView.context)
                 .load(item.imageUrl)
+                .placeholder(R.drawable.spinner_loader)
                 .centerCrop()
                 .into(holder.imageFood)
         } else {
             Glide.with(holder.itemView.context)
                 .load(R.drawable.background_with_logo)
+                .placeholder(R.drawable.spinner_loader)
                 .centerCrop()
                 .into(holder.imageFood)
         }
