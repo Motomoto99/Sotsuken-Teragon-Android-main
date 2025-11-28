@@ -84,22 +84,27 @@ class FolderDetailFragment : Fragment() {
     private fun removeRecipe(recipe: Recipe) {
         lifecycleScope.launch {
             try {
+                // ★修正前：条件分岐で片方だけ消していた
+                /*
                 if (targetFolder.id == "ALL_FAVORITES") {
-                    // 「すべてのお気に入り」から削除する場合
                     FolderRepository.removeGlobalFavorite(recipe.id)
                 } else {
-                    // 特定のフォルダから削除する場合
                     FolderRepository.removeRecipeFromFolder(targetFolder.id, recipe.id)
                 }
+                */
+
+                // ★修正後：どこから呼んでも「完全削除」を実行する
+                FolderRepository.deleteRecipeCompletely(recipe.id)
 
                 // 成功したらリストから消して画面更新
                 recipeList.remove(recipe)
                 adapter.notifyDataSetChanged()
 
-                Toast.makeText(context, "削除しました", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "お気に入りから削除しました", Toast.LENGTH_SHORT).show()
 
             } catch (e: Exception) {
                 Toast.makeText(context, "削除に失敗しました", Toast.LENGTH_SHORT).show()
+                e.printStackTrace()
             }
         }
     }
