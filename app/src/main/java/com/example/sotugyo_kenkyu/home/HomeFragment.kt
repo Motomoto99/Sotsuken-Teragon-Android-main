@@ -34,7 +34,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
-import com.example.sotugyo_kenkyu.common.SearchInputFragment
+import com.example.sotugyo_kenkyu.recipe.SearchInputFragment
 
 class HomeFragment : Fragment() {
 
