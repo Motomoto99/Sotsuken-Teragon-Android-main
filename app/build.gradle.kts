@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     id("com.google.gms.google-services")
     id("kotlin-kapt")
+    kotlin("plugin.serialization") version "1.9.0"
 }
 
 android {
@@ -109,4 +110,15 @@ dependencies {
 
     // Gson
     implementation("com.google.code.gson:gson:2.13.2")
+
+    // Algoliaクライアント
+    implementation("com.algolia:algoliasearch-client-kotlin:3.0.0")
+    // 非同期処理
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    // lifecycleScopeを使うため
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
+    // Ktorエンジン
+    implementation("io.ktor:ktor-client-okhttp:2.3.12")
+    // JSON翻訳機
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 }
