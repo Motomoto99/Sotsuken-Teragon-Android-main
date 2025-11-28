@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
@@ -16,6 +17,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.sotugyo_kenkyu.ImageResultFragment
 import com.example.sotugyo_kenkyu.R
+import com.example.sotugyo_kenkyu.common.SearchInputFragment
 
 class SearchFragment : Fragment() {
 
@@ -46,6 +48,24 @@ class SearchFragment : Fragment() {
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
             v.updatePadding(top = systemBars.top + originalPaddingTop)
             insets
+        }
+
+        // XMLにある検索バー(TextView)を取得してクリックイベントを設定
+        val searchBar = view.findViewById<TextView>(R.id.searchBar)
+        searchBar.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                // アニメーション設定（フェードイン・アウトでヌルッと切り替え）
+                .setCustomAnimations(
+                    R.anim.fast_fade_in,
+                    R.anim.fast_fade_out,
+                    R.anim.fast_fade_in,
+                    R.anim.fast_fade_out
+                )
+                // コンテナIDは activity_home.xml のFrameLayoutのIDに合わせてね！
+                // たぶん R.id.fragment_container だと思うけど確認して。
+                .add(R.id.fragment_container, SearchInputFragment())
+                .addToBackStack(null) // 戻れるように履歴に追加
+                .commit()
         }
 
         // --- 2. カメラ検索ボタンの処理 ---
