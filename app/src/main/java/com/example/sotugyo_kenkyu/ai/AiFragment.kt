@@ -1,14 +1,17 @@
 package com.example.sotugyo_kenkyu.ai
 
+import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.Toast
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -16,10 +19,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.sotugyo_kenkyu.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import androidx.core.view.updateLayoutParams
-import android.content.Context
-import android.view.inputmethod.InputMethodManager
-import androidx.core.view.updateLayoutParams
 
 class AiFragment : Fragment() {
 
@@ -30,7 +29,7 @@ class AiFragment : Fragment() {
     private lateinit var buttonChatList: ImageButton
     private lateinit var buttonNewChat: ImageButton
 
-    // ★追加: ローディング画面
+    // ローディング画面
     private lateinit var layoutAiLoading: View
 
     // --- 表示用メッセージ ---
@@ -61,14 +60,11 @@ class AiFragment : Fragment() {
         buttonChatList = view.findViewById(R.id.buttonChatList)
         buttonNewChat = view.findViewById(R.id.buttonNewChat)
 
-        // ★追加: ローディングViewの取得
+        // ローディングViewの取得
         layoutAiLoading = view.findViewById(R.id.layoutAiLoading)
-
-        val header = view.findViewById<View>(R.id.header)
 
         //AIチャットで入力欄を動的に移動させるときに追加
         val layoutInput = view.findViewById<View>(R.id.layoutInput)
-        val bottomNav = requireActivity().findViewById<View>(R.id.bottomNavigation)
 
         // ステータスバー分をヘッダーに足す
         ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets ->
@@ -105,12 +101,11 @@ class AiFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                // ★変更: 処理開始前にローディングを表示して画面を隠す
+                // 処理開始前にローディングを表示して画面を隠す
                 setLoading(true)
 
                 if (currentId == null) {
                     // 新規チャット状態（まだ履歴なし）
-                    // ★ここでアレルギー情報を含むプロンプトの再読み込みが行われる
                     AiChatSessionManager.ensureSessionInitialized()
                     messages.clear()
                     chatAdapter.notifyDataSetChanged()
@@ -121,22 +116,24 @@ class AiFragment : Fragment() {
             } catch (ce: CancellationException) {
                 // 画面から離れたときなどの正常なキャンセル → 何もしない
             } catch (e: Exception) {
-                // 本当に失敗したときだけログに出す（ユーザーには通知しない）
+                // 本当に失敗したときだけログに出す
                 e.printStackTrace()
             } finally {
-                // ★変更: 準備完了（またはエラー）したらローディングを消す
+                // 準備完了（またはエラー）したらローディングを消す
                 setLoading(false)
 
                 buttonSend.isEnabled = true
                 updateNewChatButtonState()
+
+                // ★追加: 記録画面などから飛んできた場合、預かっていたメッセージを自動送信
+                checkPendingContextAndSend()
             }
         }
 
         // 送信
         buttonSend.setOnClickListener {
             hideKeyboard()
-            sendMessage()
-
+            sendMessage() // 引数なし＝入力欄の内容を送信
         }
 
         // チャット一覧へ
@@ -146,7 +143,6 @@ class AiFragment : Fragment() {
         buttonNewChat.setOnClickListener {
             viewLifecycleOwner.lifecycleScope.launch {
                 try {
-                    // ★ここもローディングを表示する（一瞬だが切り替わりを見せるため）
                     setLoading(true)
                     buttonSend.isEnabled = false
 
@@ -167,11 +163,34 @@ class AiFragment : Fragment() {
         }
     }
 
-    // ★追加: ローディングの表示切り替え関数
+    /**
+     * ★追加: タブ切り替えなどで「非表示→表示」になったときに呼ばれる
+     * RecordFragmentから遷移してきた場合、onViewCreatedではなくここが呼ばれることがあるため
+     */
+    override fun onHiddenChanged(hidden: Boolean) {
+        super.onHiddenChanged(hidden)
+        if (!hidden) {
+            // 表示されたタイミングで「預かりメッセージ」があるかチェック
+            checkPendingContextAndSend()
+        }
+    }
+
+    /** ★追加: AiChatSessionManagerに保留中のメッセージがあれば送信する */
+    private fun checkPendingContextAndSend() {
+        val pendingMsg = AiChatSessionManager.pendingContext
+        // チャットセッション準備完了＆メッセージがある場合のみ実行
+        if (pendingMsg != null && AiChatSessionManager.chat != null) {
+            // 二重送信防止のためクリア
+            AiChatSessionManager.pendingContext = null
+            // 自動送信を実行
+            sendMessage(manualText = pendingMsg)
+        }
+    }
+
+    // ローディングの表示切り替え関数
     private fun setLoading(isLoading: Boolean) {
         if (isLoading) {
             layoutAiLoading.visibility = View.VISIBLE
-            // ローディング中は入力もできないようにする
             editTextMessage.isEnabled = false
         } else {
             layoutAiLoading.visibility = View.GONE
@@ -179,7 +198,6 @@ class AiFragment : Fragment() {
         }
     }
 
-    /** Firestoreから履歴を読み込み、AIセッションにも流し込む */
     /** Firestoreから履歴を読み込み、AIセッションにも流し込む */
     private suspend fun loadExistingChat(chatId: String) {
         val list = ChatRepository.loadMessages(chatId)
@@ -189,24 +207,30 @@ class AiFragment : Fragment() {
         chatAdapter.notifyDataSetChanged()
         scrollToBottom()
 
-        // ★変更: 履歴を使ってセッションを一括復元（高速化＆アレルギー読み込みスキップ）
         AiChatSessionManager.startSessionWithHistory(list)
     }
 
-    /** メッセージ送信処理 */
-    private fun sendMessage() {
-        // ... (既存のコードと同じ) ...
+    /**
+     * メッセージ送信処理
+     * @param manualText 自動送信などでテキストを直接指定する場合に使用。nullの場合は入力欄を使用。
+     */
+    private fun sendMessage(manualText: String? = null) {
         val sessionChat = AiChatSessionManager.chat
         if (sessionChat == null) {
             Toast.makeText(requireContext(), "準備中です…", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val userMessageText = editTextMessage.text.toString().trim()
+        // 引数があればそれを、なければ入力欄を使用
+        val userMessageText = manualText ?: editTextMessage.text.toString().trim()
         if (userMessageText.isEmpty()) return
 
         addMessage(userMessageText, isUser = true)
-        editTextMessage.text.clear()
+
+        // 入力欄からの送信だった場合のみクリアする（自動送信の場合は消さない）
+        if (manualText == null) {
+            editTextMessage.text.clear()
+        }
         scrollToBottom()
 
         buttonSend.isEnabled = false
@@ -236,6 +260,7 @@ class AiFragment : Fragment() {
                 addMessage(aiResponseText, isUser = false)
                 ChatRepository.addMessage(chatId, role = "assistant", text = aiResponseText)
             } catch (ce: CancellationException) {
+                // キャンセル時は何もしない
             } catch (e: Exception) {
                 val errorText = "エラー: ${e.localizedMessage}"
                 addMessage(errorText, isUser = false)
@@ -271,15 +296,13 @@ class AiFragment : Fragment() {
         recyclerView.adapter = null
     }
 
-    //送信後に、キーボードを自動で閉じるようにする関数
+    // 送信後にキーボードを閉じる
     private fun hideKeyboard() {
         val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        // フォーカスがあるビュー、なければ画面全体のトークンを使用
         val currentFocus = activity?.currentFocus ?: view
         currentFocus?.let {
             imm.hideSoftInputFromWindow(it.windowToken, 0)
         }
-        // フォーカスを入力欄から外して、カーソルの点滅などを消したい場合は以下も追加
         editTextMessage.clearFocus()
     }
 }
