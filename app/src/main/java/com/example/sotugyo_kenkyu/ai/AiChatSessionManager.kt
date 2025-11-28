@@ -35,6 +35,11 @@ object AiChatSessionManager {
     var chat: Chat? = null
         private set
 
+    /** * ★追加: 記録画面などからの引き継ぎデータ（文脈）を一時的に入れる場所
+     * 画面遷移前にここにメッセージを入れておくと、AiFragment起動時に自動送信される
+     */
+    var pendingContext: String? = null
+
     // ---------------- プロンプト関連 ----------------
 
     private suspend fun buildInitialPrompt(): String {

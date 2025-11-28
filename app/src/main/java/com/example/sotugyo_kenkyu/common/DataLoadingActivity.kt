@@ -15,9 +15,15 @@ import com.example.sotugyo_kenkyu.home.HomeActivity
 import com.example.sotugyo_kenkyu.notification.Notification
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query // 追加
+import kotlinx.coroutines.Dispatchers // 追加
+import kotlinx.coroutines.async // 追加
+import kotlinx.coroutines.awaitAll // 追加
+import kotlinx.coroutines.coroutineScope // 追加
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext // 追加
 
 class DataLoadingActivity : AppCompatActivity() {
 
@@ -33,9 +39,6 @@ class DataLoadingActivity : AppCompatActivity() {
 
         progressBar = findViewById(R.id.progressBar)
         textLoading = findViewById(R.id.textLoading)
-
-        // 中央のイラスト画像は、XML (activity_data_loading.xml) の android:src で
-        // 指定されているため、ここでは特別な処理は不要です（四角いまま表示されます）。
 
         progressBar.max = 100
 
@@ -55,19 +58,21 @@ class DataLoadingActivity : AppCompatActivity() {
             }
 
             // 3. 読み込み中もゲージを少しずつ進める演出 (40% -> 60% -> 80%)
-            val steps = listOf(40, 60, 80)
+            // 処理が重くなる可能性があるので、少しゆっくり進める
+            val steps = listOf(40, 55, 70, 85)
             for (step in steps) {
-                updateProgress(step)
-                delay(400) // 各ステップで少し待機して「読み込んでる感」を出す
+                if (jobData.isActive) { // まだ終わっていなければ進める
+                    updateProgress(step)
+                    delay(500)
+                }
             }
 
             // 4. データ読み込みの完了を待つ
-            // (演出が80%まで進んでも、データ取得が終わっていなければここで待機)
             jobData.join()
 
             // 5. 完了演出 (100%)
             updateProgress(100)
-            delay(500) // 100%の状態を少し見せる
+            delay(200)
 
             // 6. ホーム画面へ遷移
             goToHome()
@@ -75,46 +80,89 @@ class DataLoadingActivity : AppCompatActivity() {
     }
 
     // 実際のデータ取得・キャッシュ処理
-    private suspend fun loadRealData() {
+    private suspend fun loadRealData() = coroutineScope {
         try {
             val user = FirebaseAuth.getInstance().currentUser
+            val db = FirebaseFirestore.getInstance()
 
-            // --- タスク1: アイコン画像の先読み (キャッシュ) ---
-            // ホーム画面で丸く表示するため、ここでも circleCrop() を適用してキャッシュさせる
+            // --- タスク1: 自分のアイコン画像の先読み ---
             if (user?.photoUrl != null) {
+                // メインスレッドでGlideを呼ぶ必要がある場合のためwithContextを使う（念のため）
+                withContext(Dispatchers.Main) {
+                    Glide.with(this@DataLoadingActivity)
+                        .load(user.photoUrl)
+                        .circleCrop()
+                        .diskCacheStrategy(DiskCacheStrategy.ALL)
+                        .preload()
+                }
+            }
+
+            // 運営アイコン(ベル)も先読み
+            withContext(Dispatchers.Main) {
                 Glide.with(this@DataLoadingActivity)
-                    .load(user.photoUrl)
-                    .circleCrop() // ホーム画面の設定に合わせる
+                    .load(R.drawable.ic_notifications)
+                    .circleCrop()
                     .diskCacheStrategy(DiskCacheStrategy.ALL)
                     .preload()
             }
 
-            // 運営アイコン(ベル)も先読み
-            Glide.with(this@DataLoadingActivity)
-                .load(R.drawable.ic_notifications)
-                .circleCrop()
-                .diskCacheStrategy(DiskCacheStrategy.ALL)
-                .preload()
+            if (user != null) {
+                // --- タスク2: 未読数の計算 ---
+                val prefs = getSharedPreferences("prefs_notification", MODE_PRIVATE)
+                val lastSeenTime = prefs.getLong("last_seen_timestamp", 0L)
 
-            // --- タスク2: 未読数の計算 ---
-            val db = FirebaseFirestore.getInstance()
-            val prefs = getSharedPreferences("prefs_notification", MODE_PRIVATE)
-            val lastSeenTime = prefs.getLong("last_seen_timestamp", 0L)
+                // 通知データを取得（自分宛て）
+                // ★ここで少し多めに取得してキャッシュさせておく
+                val notificationsSnapshot = db.collection("users").document(user.uid)
+                    .collection("notifications")
+                    .orderBy("date", Query.Direction.DESCENDING)
+                    .limit(30) // 最新30件を取得
+                    .get()
+                    .await()
 
-            // 通知データを取得
-            val snapshot = db.collection("notifications").get().await()
-
-            // 未読数をカウント
-            var count = 0
-            for (doc in snapshot.documents) {
-                val notification = doc.toObject(Notification::class.java)
-                val date = notification?.date
-                // 最後に見た時間より新しいものをカウント
-                if (date != null && date.toDate().time > lastSeenTime) {
-                    count++
+                // 未読数をカウント
+                var count = 0
+                for (doc in notificationsSnapshot.documents) {
+                    val notification = doc.toObject(Notification::class.java)
+                    val date = notification?.date
+                    if (date != null && date.toDate().time > lastSeenTime) {
+                        count++
+                    }
                 }
+                initialUnreadCount = count
+
+                // --- ★追加タスク: 通知送信者のアイコンを事前読み込み (N+1対策) ---
+                // 通知に含まれる senderUid をリストアップ（重複なし）
+                val senderUids = notificationsSnapshot.documents
+                    .mapNotNull { it.getString("senderUid") }
+                    .distinct()
+
+                // 送信者のユーザー情報を並列で取得して画像をプリロード
+                // (async/awaitAll で一気に処理する)
+                senderUids.map { uid ->
+                    async(Dispatchers.IO) {
+                        try {
+                            // ユーザー情報を取得 (Firestoreのキャッシュも効くようになる)
+                            val userDoc = db.collection("users").document(uid).get().await()
+                            val photoUrl = userDoc.getString("photoUrl")
+
+                            if (!photoUrl.isNullOrEmpty()) {
+                                // 画像URLがあればGlideでプリロード（キャッシュに保存）
+                                withContext(Dispatchers.Main) {
+                                    Glide.with(this@DataLoadingActivity)
+                                        .load(photoUrl)
+                                        .circleCrop()
+                                        .diskCacheStrategy(DiskCacheStrategy.ALL)
+                                        .preload()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // 個別の読み込み失敗は無視して進む
+                            e.printStackTrace()
+                        }
+                    }
+                }.awaitAll() // 全員の処理が終わるのを待つ
             }
-            initialUnreadCount = count // 結果を保持
 
         } catch (e: Exception) {
             e.printStackTrace()
@@ -134,15 +182,12 @@ class DataLoadingActivity : AppCompatActivity() {
 
     private fun goToHome() {
         val intent = Intent(this, HomeActivity::class.java)
-        // 計算した未読数を渡す（ホーム画面で即座にバッジを表示するため）
         intent.putExtra("INITIAL_UNREAD_COUNT", initialUnreadCount)
 
-        // 戻るボタンで読み込み画面に戻らないように履歴を削除
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
         finish()
 
-        // フェードイン・アウトのアニメーション
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
     }
 }

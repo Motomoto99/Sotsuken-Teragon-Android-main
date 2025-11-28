@@ -100,6 +100,10 @@ dependencies {
 // ★REST API通信用 (OkHttp)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
+    implementation("androidx.fragment:fragment-ktx:1.8.1")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.3")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.3")
+
     // コルーチン
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }

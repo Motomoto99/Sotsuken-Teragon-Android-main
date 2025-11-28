@@ -44,7 +44,7 @@ class RecipeDetailFragment : Fragment() {
         textTitle.text = recipe.recipeTitle
         textMaterial.text = recipe.recipeMaterial.joinToString("\n") // 材料を改行して表示
 
-        Glide.with(this).load(recipe.foodImageUrl).into(imageFood)
+        Glide.with(this).load(recipe.foodImageUrl).placeholder(R.drawable.spinner_loader).into(imageFood)
 
         // 楽天レシピのWebサイトを開くボタン
         buttonWeb.setOnClickListener {

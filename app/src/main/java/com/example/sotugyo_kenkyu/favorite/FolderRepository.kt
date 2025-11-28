@@ -140,4 +140,41 @@ object FolderRepository {
             .delete()
             .await()
     }
+    // FolderRepository.kt の既存のメソッドの下あたりに追加
+
+    // ★追加: どこにあろうと、そのレシピIDに関するお気に入りデータを全て削除する
+    suspend fun deleteRecipeCompletely(recipeId: String) {
+        val uid = currentUserId ?: return
+
+        // 1. まず「すべてのお気に入り」から削除
+        db.collection("users").document(uid)
+            .collection("favorites").document(recipeId)
+            .delete()
+
+        // 2. すべてのフォルダをチェックして、もし入っていたら削除
+        // (フォルダ一覧を取得してから、それぞれのフォルダに対して削除を試みる)
+        val foldersSnapshot = db.collection("users").document(uid)
+            .collection("folders")
+            .get()
+            .await()
+
+        // 各フォルダに対して処理
+        for (folderDoc in foldersSnapshot.documents) {
+            val folderId = folderDoc.id
+            val recipeRef = db.collection("users").document(uid)
+                .collection("folders").document(folderId)
+                .collection("recipes").document(recipeId)
+
+            // そのフォルダにレシピがあるか確認
+            val recipeSnap = recipeRef.get().await()
+            if (recipeSnap.exists()) {
+                // あれば削除して、カウントを減らす
+                recipeRef.delete()
+
+                db.collection("users").document(uid)
+                    .collection("folders").document(folderId)
+                    .update("recipeCount", FieldValue.increment(-1))
+            }
+        }
+    }
 }
