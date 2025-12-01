@@ -23,6 +23,15 @@ class RecipeAdapter(
         notifyDataSetChanged() // ← これが「表示を更新しろ！」っていう命令
     }
 
+    //「継ぎ足し」用（2ページ目以降）
+    fun addData(moreList: List<Recipe>) {
+        val currentSize = recipeList.size
+        // 今のリスト + 新しいリスト を結合する
+        recipeList = recipeList + moreList
+        // RecyclerViewに「ここから下が増えたよ！」って教えてあげる（効率的！）
+        notifyItemRangeInserted(currentSize, moreList.size)
+    }
+
     class RecipeViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val imageFood: ImageView = view.findViewById(R.id.imageFood)
         val textTitle: TextView = view.findViewById(R.id.textTitle)
