@@ -34,6 +34,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
+import com.example.sotugyo_kenkyu.recipe.SearchInputFragment
 
 class HomeFragment : Fragment() {
 
@@ -62,6 +63,24 @@ class HomeFragment : Fragment() {
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
             v.updatePadding(top = systemBars.top + originalPaddingTop)
             insets
+        }
+
+        // XMLにある検索バー(TextView)を取得してクリックイベントを設定
+        val searchBar = view.findViewById<TextView>(R.id.searchBar)
+        searchBar.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                // アニメーション設定（フェードイン・アウトでヌルッと切り替え）
+                .setCustomAnimations(
+                    R.anim.fast_fade_in,
+                    R.anim.fast_fade_out,
+                    R.anim.fast_fade_in,
+                    R.anim.fast_fade_out
+                )
+                // コンテナIDは activity_home.xml のFrameLayoutのIDに合わせてね！
+                // たぶん R.id.fragment_container だと思うけど確認して。
+                .add(R.id.fragment_container, SearchInputFragment())
+                .addToBackStack(null) // 戻れるように履歴に追加
+                .commit()
         }
 
         val userIcon: ImageButton = view.findViewById(R.id.iconUser)

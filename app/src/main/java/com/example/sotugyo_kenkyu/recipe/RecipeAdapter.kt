@@ -12,10 +12,16 @@ import com.bumptech.glide.Glide
 import com.example.sotugyo_kenkyu.R
 
 class RecipeAdapter(
-    private val recipeList: List<Recipe>,
+    private var recipeList: List<Recipe>,
     private val onFavoriteClick: (Recipe) -> Unit, // お気に入りボタンの処理
     private val onItemClick: (Recipe) -> Unit      // 全体クリックの処理
 ) : RecyclerView.Adapter<RecipeAdapter.RecipeViewHolder>() {
+
+    // これが「新しいデータを受け取って、画面を更新する」ためのスイッチよ
+    fun updateData(newList: List<Recipe>) {
+        recipeList = newList
+        notifyDataSetChanged() // ← これが「表示を更新しろ！」っていう命令
+    }
 
     class RecipeViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val imageFood: ImageView = view.findViewById(R.id.imageFood)
