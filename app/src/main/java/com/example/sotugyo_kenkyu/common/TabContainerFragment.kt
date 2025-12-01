@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import com.example.sotugyo_kenkyu.R
 
 class TabContainerFragment : Fragment() {
@@ -53,5 +54,13 @@ class TabContainerFragment : Fragment() {
     // このタブの中で「戻る」処理を実行するメソッド
     fun goBack() {
         childFragmentManager.popBackStack()
+    }
+
+    // タブ内の履歴を全消去して、ルート（最初の画面）に戻す
+    fun clearHistory() {
+        if (childFragmentManager.backStackEntryCount > 0) {
+            // "null" と "INCLUSIVE" を指定することで、スタックにあるものを根こそぎ消す
+            childFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+        }
     }
 }

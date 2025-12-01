@@ -57,8 +57,25 @@ class HomeActivity : AppCompatActivity() {
 
         // ナビゲーション切替リスナー
         bottomNavigation.setOnItemSelectedListener { item ->
+
+            // ★ホームタブが押されたら、その中の履歴（検索画面など）を消す！
+            if (item.itemId == R.id.nav_home) {
+                // すでに生成されているホームのコンテナを取得
+                val homeContainer = tabFragments[R.id.nav_home]
+                // 掃除実行！
+                homeContainer?.clearHistory()
+            }
+
             switchTab(item.itemId)
             true
+        }
+
+        // ★すでにホームにいるのに、もう一度「ホーム」を押した時もリセットする
+        bottomNavigation.setOnItemReselectedListener { item ->
+            if (item.itemId == R.id.nav_home) {
+                val homeContainer = tabFragments[R.id.nav_home]
+                homeContainer?.clearHistory()
+            }
         }
 
         // 戻るボタンの挙動を制御（タブ内の履歴があればそれを戻る）
