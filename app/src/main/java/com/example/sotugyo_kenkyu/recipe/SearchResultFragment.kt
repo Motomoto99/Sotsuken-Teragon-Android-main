@@ -43,6 +43,15 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
     private val searchKey = "5968a7682ec81ac7ff865cdb36dea95e"
     private val indexName = "recipes"
 
+    // ★ページネーション用の変数
+    private var currentPage = 0      // 今何ページ目か
+    private var isLoading = false    // 読み込み中か（連打防止）
+    private var isLastPage = false   // もうデータがないか
+    private var currentKeyword = ""  // 今検索してる言葉
+    private val hitsPerPage = 20     // 1回に取る件数
+
+    private lateinit var historyManager: SearchHistoryManager
+
     // ★OkHttpクライアント（これが新しい通信役！）
     private val client = OkHttpClient()
     private val myJsonParser = Json { ignoreUnknownKeys = true }
@@ -53,6 +62,8 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
 
         // 前画面からのキーワード取得
         val initialKeyword = arguments?.getString("KEY_SEARCH_WORD") ?: ""
+
+        historyManager = SearchHistoryManager(requireContext())
 
         val searchEditText = view.findViewById<EditText>(R.id.resultSearchEditText)
         val btnBack = view.findViewById<View>(R.id.btnBack)
@@ -89,11 +100,17 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
             parentFragmentManager.popBackStack()
         }
 
-        // ここでも再検索できるように
+        // ★最初に検索するときはリセット
+        resetSearch(initialKeyword)
+
+        // ★再検索のとき
         searchEditText.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 val newKeyword = searchEditText.text.toString()
-                performSearch(newKeyword)
+                if (newKeyword.isNotBlank()) {
+                    historyManager.saveHistory(newKeyword) // 履歴保存
+                    resetSearch(newKeyword) // ★リセットして検索
+                }
                 hideKeyboard(view)
                 true
             } else {
@@ -101,13 +118,43 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
             }
         }
 
-        // 最初の検索実行！
-        performSearch(initialKeyword)
+        // ★【重要】スクロール検知リスナーを追加
+        recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                super.onScrolled(recyclerView, dx, dy)
+
+                val layoutManager = recyclerView.layoutManager as LinearLayoutManager
+                val totalItemCount = layoutManager.itemCount
+                val lastVisibleItem = layoutManager.findLastVisibleItemPosition()
+
+                // 条件：
+                // 1. 読み込み中じゃない
+                // 2. まだ続きがある（LastPageじゃない）
+                // 3. リストの一番下が見えた
+                if (!isLoading && !isLastPage && totalItemCount <= (lastVisibleItem + 2)) {
+                    // 次のページを読み込む！
+                    currentPage++
+                    performSearch(currentKeyword, isAppend = true)
+                }
+            }
+        })
+
+
     }
 
-    private fun performSearch(keyword: String) {
-        if (keyword.isBlank()) return
-        Log.d("Algolia", "検索開始: $keyword")
+    // ★検索状態をリセットして、最初から検索する関数
+    private fun resetSearch(keyword: String) {
+        currentKeyword = keyword
+        currentPage = 0
+        isLastPage = false
+        performSearch(keyword, isAppend = false) // 上書きモード
+    }
+
+    private fun performSearch(keyword: String, isAppend: Boolean) {
+        if (isLoading) return // 重複読み込みガード
+        isLoading = true
+
+        Log.d("Algolia", "検索: $keyword, ページ: $currentPage")
 
         // 通信なのでコルーチンを使う（ここは変わらない）
         lifecycleScope.launch {
@@ -115,6 +162,8 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
                 // 1. JSONを作る（デモと同じ！）
                 val jsonBodyString = buildJsonObject {
                     put("query", keyword)
+                    put("page", currentPage)       // ★ページ番号を指定
+                    put("hitsPerPage", hitsPerPage) // ★1回の件数
                 }.toString() // ← 文字列にするのがポイント
 
                 // 2. リクエストを作る（ここが新しい！）
@@ -154,16 +203,28 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
                     }
                 }
 
-                // 6. 表示更新
-                recipeAdapter.updateData(recipeList)
-
                 if (recipeList.isEmpty()) {
-                    Toast.makeText(context, "見つかりませんでした", Toast.LENGTH_SHORT).show()
+                    isLastPage = true // もう空っぽなら次は読まない
+                }
+
+                if (isAppend) {
+                    // 2ページ目以降なら「継ぎ足し」
+                    recipeAdapter.addData(recipeList)
+                } else {
+                    // 1ページ目なら「総入れ替え」
+                    recipeAdapter.updateData(recipeList)
+                    // 1ページ目なのに0件なら「見つかりません」
+                    if (recipeList.isEmpty()) {
+                        Toast.makeText(context, "見つかりませんでした", Toast.LENGTH_SHORT).show()
+                    }
                 }
 
             } catch (e: Exception) {
                 Log.e("Algolia", "エラー", e)
                 Toast.makeText(context, "検索失敗: ${e.message}", Toast.LENGTH_SHORT).show()
+            }finally {
+                // ★終わったらフラグを下ろす（重要！）
+                isLoading = false
             }
         }
     }
