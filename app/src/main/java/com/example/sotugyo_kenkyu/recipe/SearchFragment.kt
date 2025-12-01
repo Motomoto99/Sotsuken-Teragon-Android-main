@@ -17,7 +17,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.sotugyo_kenkyu.ImageResultFragment
 import com.example.sotugyo_kenkyu.R
-import com.example.sotugyo_kenkyu.common.SearchInputFragment
+import com.example.sotugyo_kenkyu.recipe.SearchInputFragment
 
 class SearchFragment : Fragment() {
 
