@@ -1,6 +1,5 @@
 package com.example.sotugyo_kenkyu.home
 
-import com.example.sotugyo_kenkyu.recipe.Recipe
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -17,14 +16,18 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout // 追加
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.example.sotugyo_kenkyu.R
 import com.example.sotugyo_kenkyu.account.AccountSettingsActivity
 import com.example.sotugyo_kenkyu.notification.Notification
 import com.example.sotugyo_kenkyu.notification.NotificationActivity
-import com.example.sotugyo_kenkyu.record.PublicRecordsFragment
-import com.example.sotugyo_kenkyu.R
+import com.example.sotugyo_kenkyu.recipe.Recipe
 import com.example.sotugyo_kenkyu.recipe.RecipeDetailFragment
+import com.example.sotugyo_kenkyu.recipe.SearchInputFragment
+import com.example.sotugyo_kenkyu.record.PublicRecordsFragment
 import com.example.sotugyo_kenkyu.record.Record
 import com.example.sotugyo_kenkyu.record.RecordDetailActivity
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -32,9 +35,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
-import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
-import com.example.sotugyo_kenkyu.recipe.SearchInputFragment
 
 class HomeFragment : Fragment() {
 
@@ -43,8 +44,8 @@ class HomeFragment : Fragment() {
     private var currentSnapshots: QuerySnapshot? = null
     private var lastSeenDate: Timestamp? = null
 
-    private var myRecordList: List<Record> = emptyList()
-    private var publicRecordList: List<Record> = emptyList()
+    // ViewModelの初期化
+    private val viewModel: HomeViewModel by viewModels()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -56,6 +57,7 @@ class HomeFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // --- UI初期化 ---
         val topBar = view.findViewById<ConstraintLayout>(R.id.topBar)
 
         ViewCompat.setOnApplyWindowInsetsListener(topBar) { v, insets ->
@@ -65,21 +67,17 @@ class HomeFragment : Fragment() {
             insets
         }
 
-        // XMLにある検索バー(TextView)を取得してクリックイベントを設定
         val searchBar = view.findViewById<TextView>(R.id.searchBar)
         searchBar.setOnClickListener {
             parentFragmentManager.beginTransaction()
-                // アニメーション設定（フェードイン・アウトでヌルッと切り替え）
                 .setCustomAnimations(
                     R.anim.fast_fade_in,
                     R.anim.fast_fade_out,
                     R.anim.fast_fade_in,
                     R.anim.fast_fade_out
                 )
-                // コンテナIDは activity_home.xml のFrameLayoutのIDに合わせてね！
-                // たぶん R.id.fragment_container だと思うけど確認して。
                 .add(R.id.fragment_container, SearchInputFragment())
-                .addToBackStack(null) // 戻れるように履歴に追加
+                .addToBackStack(null)
                 .commit()
         }
 
@@ -108,14 +106,48 @@ class HomeFragment : Fragment() {
                 .commit()
         }
 
-        if (myRecordList.isNotEmpty()) {
-            updateRecentRecordsUI(myRecordList)
-        }
-        if (publicRecordList.isNotEmpty()) {
-            updateEveryoneRecordsUI(publicRecordList)
+        // --- ★追加: SwipeRefreshLayoutの設定 ---
+        val swipeRefreshLayout = view.findViewById<SwipeRefreshLayout>(R.id.swipeRefreshLayout)
+
+        // 引っ張った時の処理
+        swipeRefreshLayout.setOnRefreshListener {
+            viewModel.refresh()
+            recommend_recipe() // おすすめレシピもついでに更新
         }
 
-        loadUserIcon()
+        // ViewModelのロード状態を監視して、終わったらくるくるを止める
+        viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
+            swipeRefreshLayout.isRefreshing = isLoading
+        }
+
+        // --- ViewModelのデータ監視 ---
+
+        viewModel.myRecords.observe(viewLifecycleOwner) { records ->
+            updateRecentRecordsUI(records)
+        }
+
+        viewModel.publicRecords.observe(viewLifecycleOwner) { records ->
+            updateEveryoneRecordsUI(records)
+        }
+
+        viewModel.userIconUrl.observe(viewLifecycleOwner) { url ->
+            if (!url.isNullOrEmpty()) {
+                Glide.with(this)
+                    .load(url)
+                    .circleCrop()
+                    .diskCacheStrategy(DiskCacheStrategy.ALL)
+                    .into(userIcon)
+            } else {
+                Glide.with(this)
+                    .load(R.drawable.outline_account_circle_24)
+                    .circleCrop()
+                    .into(userIcon)
+            }
+        }
+
+        // 初回データの読み込み
+        viewModel.loadDataIfNeeded()
+
         loadNotificationIcon()
         recommend_recipe()
     }
@@ -130,27 +162,7 @@ class HomeFragment : Fragment() {
         stopListeners()
     }
 
-    override fun onResume() {
-        super.onResume()
-        loadUserIcon()
-        loadRecentRecords()
-        loadEveryoneRecords()
-    }
-
-    private fun loadRecentRecords() {
-        val user = FirebaseAuth.getInstance().currentUser ?: return
-        val db = FirebaseFirestore.getInstance()
-
-        db.collection("users").document(user.uid).collection("my_records")
-            .orderBy("date", Query.Direction.DESCENDING)
-            .limit(2)
-            .get()
-            .addOnSuccessListener { documents ->
-                val records = documents.toObjects(Record::class.java)
-                myRecordList = records
-                updateRecentRecordsUI(records)
-            }
-    }
+    // --- 以下、既存のUI更新メソッドなどはそのまま ---
 
     private fun updateRecentRecordsUI(records: List<Record>) {
         val view = view ?: return
@@ -189,24 +201,6 @@ class HomeFragment : Fragment() {
         } else {
             card2.visibility = View.INVISIBLE
         }
-    }
-
-    private fun loadEveryoneRecords() {
-        val db = FirebaseFirestore.getInstance()
-
-        db.collectionGroup("my_records")
-            .whereEqualTo("isPublic", true)
-            .orderBy("date", Query.Direction.DESCENDING)
-            .limit(2)
-            .get()
-            .addOnSuccessListener { documents ->
-                val records = documents.toObjects(Record::class.java)
-                publicRecordList = records
-                updateEveryoneRecordsUI(records)
-            }
-            .addOnFailureListener { e ->
-                Log.e("HomeFragment", "Error loading everyone records", e)
-            }
     }
 
     private fun updateEveryoneRecordsUI(records: List<Record>) {
@@ -266,46 +260,10 @@ class HomeFragment : Fragment() {
         context.startActivity(intent)
     }
 
-    // ★★★ 修正: FirestoreからアイコンURLを取得して表示する ★★★
-    private fun loadUserIcon() {
-        val view = view ?: return
-        val userIcon: ImageButton = view.findViewById(R.id.iconUser)
-        val user = FirebaseAuth.getInstance().currentUser ?: return
-        val db = FirebaseFirestore.getInstance()
-
-        // まずはデフォルトアイコンを表示しておく（読み込み中のチラつき防止）
-        Glide.with(this)
-            .load(R.drawable.outline_account_circle_24)
-            .circleCrop()
-            .into(userIcon)
-
-        // Firestoreから最新情報を取得
-        db.collection("users").document(user.uid).get()
-            .addOnSuccessListener { document ->
-                if (document != null && document.exists()) {
-                    val photoUrl = document.getString("photoUrl")
-                    // FirestoreにURLが保存されており、かつ空文字でない場合のみ読み込む
-                    if (!photoUrl.isNullOrEmpty()) {
-                        Glide.with(this)
-                            .load(photoUrl)
-                            .circleCrop()
-                            .diskCacheStrategy(DiskCacheStrategy.ALL)
-                            .into(userIcon)
-                    }
-                    // 空文字の場合はデフォルトのまま（初期ユーザー状態）
-                }
-            }
-    }
-
     private fun loadNotificationIcon() {
         val view = view ?: return
         val notificationIcon: ImageButton = view.findViewById(R.id.iconNotification)
-
-        Glide.with(this)
-            .load(R.drawable.ic_notifications)
-            .circleCrop()
-            .diskCacheStrategy(DiskCacheStrategy.ALL)
-            .into(notificationIcon)
+        Glide.with(this).load(R.drawable.ic_notifications).circleCrop().into(notificationIcon)
     }
 
     private fun startListeners() {
@@ -323,7 +281,9 @@ class HomeFragment : Fragment() {
         }
 
         if (notificationListener == null) {
-            notificationListener = db.collection("notifications")
+            // 自分宛ての通知を監視
+            notificationListener = db.collection("users").document(user.uid)
+                .collection("notifications")
                 .addSnapshotListener { snapshots, e ->
                     if (e != null) return@addSnapshotListener
                     if (snapshots != null) {
@@ -372,47 +332,33 @@ class HomeFragment : Fragment() {
         val recommend_text: TextView = view.findViewById(R.id.textRecommendedTitle)
 
         val db = FirebaseFirestore.getInstance()
-        db.collection("recommend") // recommendコレクションを参照
+        db.collection("recommend")
             .get()
             .addOnSuccessListener { queryDocumentSnapshots ->
-                // ドキュメントが空でないかチェック
                 if (!queryDocumentSnapshots.isEmpty) {
                     val size = queryDocumentSnapshots.size()
-                    // 0 から size-1 の範囲でランダムなインデックスを生成
                     val randomIndex = (0 until size).random()
                     val doc = queryDocumentSnapshots.documents[randomIndex]
 
-                    // ★重要: ドキュメントをRecipeクラスのオブジェクトに変換
                     val recipe = doc.toObject(Recipe::class.java)
 
                     if (recipe != null) {
-                        // ドキュメントIDをセット（詳細画面でのお気に入り登録などで使うため）
                         recipe.id = doc.id
-
-                        // UIへの表示
                         recommend_text.text = recipe.recipeTitle
                         if (recipe.foodImageUrl.isNotEmpty()) {
-                            Glide.with(this)
-                                .load(recipe.foodImageUrl)
-                                .into(recommend_image)
+                            Glide.with(this).load(recipe.foodImageUrl).into(recommend_image)
                         } else {
                             recommend_image.setImageResource(R.drawable.funa_smile)
                         }
 
-                        // ★クリックリスナーの実装（データ取得後にセットする）
                         recommend_image.setOnClickListener {
-                            // 詳細画面のフラグメントを作成
                             val fragment = RecipeDetailFragment()
-
-                            // データを渡すためのBundleを作成
                             val args = Bundle()
                             args.putSerializable("RECIPE_DATA", recipe)
                             fragment.arguments = args
-
-                            // 画面遷移を実行
                             parentFragmentManager.beginTransaction()
                                 .replace(R.id.fragment_container, fragment)
-                                .addToBackStack(null) // 戻るボタンで戻れるように履歴に追加
+                                .addToBackStack(null)
                                 .commit()
                         }
                     }
