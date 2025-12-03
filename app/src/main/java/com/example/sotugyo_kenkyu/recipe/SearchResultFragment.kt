@@ -164,6 +164,9 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
                     put("query", keyword)
                     put("page", currentPage)       // ★ページ番号を指定
                     put("hitsPerPage", hitsPerPage) // ★1回の件数
+                    // 意味: "もし完全一致（全部の単語を含む）が見つからなかったら、
+                    //       単語を減らして（OR検索っぽくして）でも結果を返して！"
+                    put("removeWordsIfNoResults", "allOptional")
                 }.toString() // ← 文字列にするのがポイント
 
                 // 2. リクエストを作る（ここが新しい！）

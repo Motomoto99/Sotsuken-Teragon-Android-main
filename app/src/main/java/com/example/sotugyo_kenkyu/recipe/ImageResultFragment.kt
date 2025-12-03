@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
-import android.util.Base64
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -14,33 +13,33 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import com.example.sotugyo_kenkyu.recipe.SearchResultFragment // ★ここを変更（RecipeListFragmentではなくこちらをインポート）
+import com.example.sotugyo_kenkyu.R
+import com.example.sotugyo_kenkyu.ai.PromptRepository
+import com.example.sotugyo_kenkyu.recipe.SearchResultFragment
+import com.google.firebase.Firebase
+import com.google.firebase.ai.GenerativeModel
+import com.google.firebase.ai.ai
+import com.google.firebase.ai.type.GenerativeBackend
+import com.google.firebase.ai.type.TextPart
+import com.google.firebase.ai.type.content
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.ByteArrayOutputStream
 import java.io.InputStream
-import java.util.concurrent.TimeUnit
-import com.example.sotugyo_kenkyu.BuildConfig
 
 class ImageResultFragment : Fragment() {
 
     private var selectedUriString: String? = null
-    private val apiKey = BuildConfig.GEMINI_API_KEY
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+    // 画像判定専用の GenerativeModel
+    private val imageJudgeModel: GenerativeModel by lazy {
+        Firebase.ai(backend = GenerativeBackend.googleAI())
+            .generativeModel(modelName = "gemini-2.5-flash")
+    }
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
+        inflater: LayoutInflater,
+        container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
         return inflater.inflate(R.layout.fragment_image_result, container, false)
@@ -55,8 +54,8 @@ class ImageResultFragment : Fragment() {
         val btnSearchAction = view.findViewById<Button>(R.id.btnSearchAction)
         val btnCancel = view.findViewById<Button>(R.id.btnCancel)
 
-        if (selectedUriString != null) {
-            imageView.setImageURI(Uri.parse(selectedUriString))
+        selectedUriString?.let {
+            imageView.setImageURI(Uri.parse(it))
         }
 
         btnCancel.setOnClickListener {
@@ -64,81 +63,56 @@ class ImageResultFragment : Fragment() {
         }
 
         btnSearchAction.setOnClickListener {
-            if (selectedUriString != null) {
-                btnSearchAction.isEnabled = false
-                btnSearchAction.text = "解析中..."
-                view.findViewById<TextView>(R.id.txtMessage).text = "AIに問い合わせています..."
+            val uriStr = selectedUriString ?: return@setOnClickListener
 
-                analyzeImageDirectly(Uri.parse(selectedUriString!!))
-            }
+            btnSearchAction.isEnabled = false
+            btnSearchAction.text = "解析中..."
+            view.findViewById<TextView>(R.id.txtMessage).text = "AIに問い合わせています..."
+
+            analyzeImageWithAiLogic(Uri.parse(uriStr))
         }
     }
 
-    private fun analyzeImageDirectly(uri: Uri) {
-        lifecycleScope.launch(Dispatchers.IO) {
+    /**
+     * Firebase AI Logic + PromptRepository を使って画像を解析
+     */
+    private fun analyzeImageWithAiLogic(uri: Uri) {
+        lifecycleScope.launch {
             try {
-                val bitmap = uriToBitmap(uri)
+                // ① プロンプトを PromptRepository から取得（料理名抽出用）
+                val promptText = PromptRepository.getDishNamePrompt()
+
+                // ② URI → Bitmap（IOスレッド）
+                val bitmap = withContext(Dispatchers.IO) { uriToBitmap(uri) }
                 if (bitmap == null) {
                     showError("画像の読み込みに失敗しました")
                     return@launch
                 }
 
-                val base64Image = bitmapToBase64(bitmap)
-
-                val jsonBody = JSONObject()
-                val contentsArray = JSONArray()
-                val contentObject = JSONObject()
-                val partsArray = JSONArray()
-
-                val textPart = JSONObject()
-                textPart.put("text", "この画像の料理名は何ですか？料理名だけを単語で答えてください。（例：カレーライス）。料理でなければ「判定不能」と答えてください。")
-                partsArray.put(textPart)
-
-                val imagePart = JSONObject()
-                val inlineData = JSONObject()
-                inlineData.put("mime_type", "image/jpeg")
-                inlineData.put("data", base64Image)
-                imagePart.put("inline_data", inlineData)
-                partsArray.put(imagePart)
-
-                contentObject.put("parts", partsArray)
-                contentsArray.put(contentObject)
-                jsonBody.put("contents", contentsArray)
-
-                val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey"
-
-                val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
-                val request = Request.Builder()
-                    .url(url)
-                    .post(requestBody)
-                    .build()
-
-                val response = client.newCall(request).execute()
-                val responseBody = response.body?.string()
-
-                if (response.isSuccessful && responseBody != null) {
-                    val jsonResponse = JSONObject(responseBody)
-                    val candidates = jsonResponse.optJSONArray("candidates")
-                    if (candidates != null && candidates.length() > 0) {
-                        val firstCandidate = candidates.getJSONObject(0)
-                        val content = firstCandidate.optJSONObject("content")
-                        val parts = content?.optJSONArray("parts")
-                        val text = parts?.getJSONObject(0)?.optString("text")?.trim() ?: "判定なし"
-
-                        withContext(Dispatchers.Main) {
-                            showResult(text)
-                        }
-                    } else {
-                        showError("AIからの応答が空でした")
-                    }
-                } else {
-                    val errorMsg = if (response.code == 429) {
-                        "利用制限（混雑）のため、少し時間を置いてください"
-                    } else {
-                        "通信エラー: ${response.code}"
-                    }
-                    showError(errorMsg)
+                // ③ 画像＋テキストの Content を作成
+                val prompt = content {
+                    image(bitmap)
+                    text(promptText)
                 }
+
+                // ④ モデル呼び出し
+                val response = withContext(Dispatchers.IO) {
+                    imageJudgeModel.generateContent(prompt)
+                }
+
+                // ⑤ 結果テキストを TextPart として取り出す
+                val dishName = response.candidates
+                    ?.firstOrNull()
+                    ?.content
+                    ?.parts
+                    ?.mapNotNull { part ->
+                        if (part is TextPart) part.text else null
+                    }
+                    ?.joinToString("\n")
+                    ?.trim()
+                    ?: "判定なし"
+
+                showResult(dishName)
 
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -147,16 +121,12 @@ class ImageResultFragment : Fragment() {
         }
     }
 
-    // ★★★ ここを修正しました ★★★
-    // 解析結果(料理名)を受け取り、Algolia検索画面へ遷移する
+    // 解析結果(料理名)を受け取り、Algolia 検索画面へ遷移する
     private suspend fun showResult(dishName: String) = withContext(Dispatchers.Main) {
         Toast.makeText(context, "「$dishName」を検索します", Toast.LENGTH_SHORT).show()
 
-        // 遷移先を SearchResultFragment に変更
         val fragment = SearchResultFragment()
         val args = Bundle()
-
-        // SearchResultFragment が受け取るキー名 "KEY_SEARCH_WORD" に合わせる
         args.putString("KEY_SEARCH_WORD", dishName)
         fragment.arguments = args
 
@@ -180,39 +150,38 @@ class ImageResultFragment : Fragment() {
         btn?.text = "検索する"
     }
 
-    private fun bitmapToBase64(bitmap: Bitmap): String {
-        val outputStream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
-        val byteArray = outputStream.toByteArray()
-        return Base64.encodeToString(byteArray, Base64.NO_WRAP)
-    }
-
+    /**
+     * 画像を適度に縮小しつつ Bitmap に変換
+     */
     private suspend fun uriToBitmap(uri: Uri): Bitmap? = withContext(Dispatchers.IO) {
         var inputStream: InputStream? = null
         try {
             val resolver = requireContext().contentResolver
             inputStream = resolver.openInputStream(uri)
 
+            // 1回目：サイズだけ取得
             val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeStream(inputStream, null, options)
             inputStream?.close()
 
             val maxDimension = 800
             var sampleSize = 1
-            while ((options.outHeight / sampleSize) > maxDimension || (options.outWidth / sampleSize) > maxDimension) {
+            while ((options.outHeight / sampleSize) > maxDimension ||
+                (options.outWidth / sampleSize) > maxDimension
+            ) {
                 sampleSize *= 2
             }
 
+            // 2回目：実際にデコード
             val finalOptions = BitmapFactory.Options().apply {
                 inJustDecodeBounds = false
                 inSampleSize = sampleSize
             }
             inputStream = resolver.openInputStream(uri)
-            val bitmap = BitmapFactory.decodeStream(inputStream, null, finalOptions)
-            return@withContext bitmap
+            BitmapFactory.decodeStream(inputStream, null, finalOptions)
         } catch (e: Exception) {
             e.printStackTrace()
-            return@withContext null
+            null
         } finally {
             inputStream?.close()
         }

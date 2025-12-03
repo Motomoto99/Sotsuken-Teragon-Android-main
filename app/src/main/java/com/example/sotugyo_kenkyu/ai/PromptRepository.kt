@@ -12,6 +12,7 @@ object PromptRepository {
     private const val FIELD_SYSTEM_PROMPT = "systemPrompt"
     private const val FIELD_IMAGE_JUDGE_PROMPT = "imageJudgePrompt"
 
+    private const val FIELD_DISH_NAME_PROMPT = "dishNamePrompt"
     // --- チャット用システムプロンプト（既存） ---
     private val DEFAULT_PROMPT = """
 # システムプロンプト：自炊初心者向け料理アシスタント
@@ -89,6 +90,7 @@ object PromptRepository {
 
 【yesと判定する条件】
 - **実写の写真であること**（必須条件）
+- **適切な内容であること**（必須条件）
 - 料理、食べ物、飲み物が画像の主な被写体である
 - 食材や調味料が主に写っている
 - レストラン、カフェ、家庭での料理の写真
@@ -99,16 +101,40 @@ object PromptRepository {
 
 【noと判定する条件】
 - **イラスト、絵、アニメ、CG、漫画、デジタルアートなど描画された画像（食べ物でもno）**
+- **性的な要素、下ネタ、露骨な表現、不適切な内容を含む画像（食べ物でもno）**
 - 人物が主な被写体（食べ物を持っていても人物がメイン）
 - 背景や風景がメイン
 - 動物がメイン
 - 建物や室内（レストラン全体の写真など）
 - その他、食べ物が主題でない画像
 
-**重要：写真として撮影された実物の食べ物のみyesと判定してください。**
+**重要：写真として撮影された実物の食べ物で、かつ適切な内容の画像のみyesと判定してください。**
 
 **判定結果：「yes」または「no」のみで回答してください。**
 """.trimIndent()
+    // --- 料理名抽出用プロンプト（ImageResultFragment 用） ---
+    private val DEFAULT_DISH_NAME_PROMPT = """
+この画像に写っている料理を判定してください。
+
+出力形式:
+- 料理の主要な食材や種類を表すキーワードを、必ず全角スペース区切りで出力してください
+- 具体的な食材名、料理名、調理法などを含めてください
+- 1~3個程度のキーワードで簡潔に表現してください　
+
+例:
+- マグロの寿司 → マグロ　寿司
+- カレーライス → カレー　ライス
+- 鶏の唐揚げ → 鶏　唐揚げ
+- トマトパスタ → トマト　パスタ
+
+キーワードのみを出力し、説明文は不要です。
+
+出力は必ず1行のみとし、
+- キーワード
+- または「判定不能」
+のどちらかだけを返してください。
+""".trimIndent()
+
 
     /** Firestore から systemPrompt を取得（失敗時は DEFAULT_PROMPT） */
     suspend fun getSystemPrompt(): String {
@@ -141,4 +167,20 @@ object PromptRepository {
             DEFAULT_IMAGE_JUDGE_PROMPT
         }
     }
+    /** 料理名抽出用プロンプトを取得（失敗時は DEFAULT_DISH_NAME_PROMPT） */
+    suspend fun getDishNamePrompt(): String {
+        return try {
+            val snapshot = Firebase.firestore
+                .collection(COLLECTION)
+                .document(DOC_ID)
+                .get()
+                .await()
+
+            snapshot.getString(FIELD_DISH_NAME_PROMPT) ?: DEFAULT_DISH_NAME_PROMPT
+        } catch (e: Exception) {
+            e.printStackTrace()
+            DEFAULT_DISH_NAME_PROMPT
+        }
+    }
+
 }
