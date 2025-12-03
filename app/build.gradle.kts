@@ -121,4 +121,6 @@ dependencies {
     implementation("io.ktor:ktor-client-okhttp:2.3.12")
     // JSON翻訳機
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+    //画像読み込み（中分類の絵文字風画像表示）
+    implementation("io.coil-kt:coil:2.5.0")
 }
