@@ -3,38 +3,53 @@ package com.example.sotugyo_kenkyu.recipe
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.sotugyo_kenkyu.R
 
 class SubCategoryAdapter(
-    private val categoryList: List<Pair<String, String>>, // IDと名前のペア
+    private val categoryList: List<SubCategoryItem>,
     private val onItemClick: (String, String) -> Unit
 ) : RecyclerView.Adapter<SubCategoryAdapter.ViewHolder>() {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val textName: TextView = view.findViewById(R.id.textCategoryName)
+
+        // レイアウトファイルから取得（CardViewとしてではなくViewとして取得でOK）
+        val iconContainer: View = view.findViewById(R.id.cardIconContainer)
+        val imgPhoto: ImageView = view.findViewById(R.id.imgCategoryPhoto)
+        val textEmoji: TextView = view.findViewById(R.id.textEmoji)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        // 既存の item_category_button.xml を使い回します（画像部分は非表示にする処理を入れても良いですが、今回は簡単のためそのままで）
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_category_button, parent, false)
         return ViewHolder(view)
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val (id, name) = categoryList[position]
+        val item = categoryList[position]
 
-        holder.textName.text = name
+        holder.textName.text = item.name
 
-        // ★★★ ここを修正！ ★★★
-        // アイコンが入っている枠（CardView）ごと非表示にする
-        val iconContainer = holder.itemView.findViewById<View>(R.id.cardIconContainer)
-        iconContainer.visibility = View.GONE
+        // ★背景色の設定を削除し、表示切り替えのみにしました
+
+        // 1. アイコン枠を表示
+        holder.iconContainer.visibility = View.VISIBLE
+
+        // 2. 画像は隠す
+        holder.imgPhoto.visibility = View.GONE
+
+        // 3. 絵文字を表示
+        holder.textEmoji.visibility = View.VISIBLE
+        holder.textEmoji.text = item.emoji
+
+        // 背景色をクリア（XMLのデフォルト背景色または白に戻すため念のため指定してもよいが、今回は指定なし）
+        // holder.textEmoji.setBackgroundColor(...) のようなコードは削除
 
         holder.itemView.setOnClickListener {
-            onItemClick(id, name)
+            onItemClick(item.id, item.name)
         }
     }
 
