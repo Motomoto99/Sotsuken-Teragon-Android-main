@@ -52,8 +52,10 @@ class RecipeDetailFragment : Fragment() {
             startActivity(intent)
         }
 
+        // ★修正: ActivityでもFragmentでも正しく戻れるように変更
         backButton.setOnClickListener {
-            parentFragmentManager.popBackStack()
+            // parentFragmentManager.popBackStack() // ← これを削除して、下のように変更
+            requireActivity().onBackPressedDispatcher.onBackPressed()
         }
     }
 }
