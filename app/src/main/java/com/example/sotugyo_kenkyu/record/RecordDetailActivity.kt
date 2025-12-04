@@ -2,7 +2,7 @@ package com.example.sotugyo_kenkyu.record
 
 import android.content.Intent
 import android.graphics.Color
-import android.net.Uri // ★追加
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageButton
@@ -19,6 +19,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import com.bumptech.glide.Glide
 import com.example.sotugyo_kenkyu.R
+import com.example.sotugyo_kenkyu.recipe.Recipe
+import com.example.sotugyo_kenkyu.recipe.RecipeDetailActivity
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
@@ -161,7 +163,6 @@ class RecordDetailActivity : AppCompatActivity() {
         }
     }
 
-    // ... (toggleLike, sendLikeNotification, updateLikeUI は変更なし) ...
     // ★★★ いいね切り替え処理（通知重複防止版） ★★★
     private fun toggleLike(myUid: String) {
         if (myUid.isEmpty() || recordId == null || userId == null) return
@@ -383,16 +384,32 @@ class RecordDetailActivity : AppCompatActivity() {
                 imageRecipeThumbnail.setImageResource(R.drawable.background_with_logo)
             }
 
-            // クリックでブラウザ起動
+            // ★修正: クリック時にFirestoreから「完全なレシピデータ」を取得して遷移する
             containerRecipe.setOnClickListener {
-                if (record.recipeUrl.isNotEmpty()) {
-                    try {
-                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(record.recipeUrl))
-                        startActivity(browserIntent)
-                    } catch (e: Exception) {
-                        Toast.makeText(this, "リンクを開けませんでした", Toast.LENGTH_SHORT).show()
+                // IDを使ってFirestoreからデータを取得
+                val db = FirebaseFirestore.getInstance()
+                db.collection("recipes").document(record.recipeId)
+                    .get()
+                    .addOnSuccessListener { document ->
+                        if (document.exists()) {
+                            // FirestoreのデータをRecipeオブジェクトに変換（材料なども含まれる）
+                            val fullRecipe = document.toObject(Recipe::class.java)
+
+                            if (fullRecipe != null) {
+                                fullRecipe.id = document.id // IDをセット
+
+                                // 完全なデータを持って詳細画面へ遷移
+                                val intent = Intent(this, RecipeDetailActivity::class.java)
+                                intent.putExtra("RECIPE_DATA", fullRecipe)
+                                startActivity(intent)
+                            }
+                        } else {
+                            Toast.makeText(this, "レシピが見つかりませんでした", Toast.LENGTH_SHORT).show()
+                        }
                     }
-                }
+                    .addOnFailureListener {
+                        Toast.makeText(this, "通信エラーが発生しました", Toast.LENGTH_SHORT).show()
+                    }
             }
         } else {
             dividerRecipe.visibility = View.GONE

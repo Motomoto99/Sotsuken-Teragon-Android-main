@@ -14,6 +14,9 @@
         android:theme="@style/Theme.Sotugyo_kenkyu">
 
         <activity
+            android:name=".recipe.RecipeDetailActivity"
+            android:exported="false" />
+        <activity
             android:name=".recipe.RecipeSelectActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
