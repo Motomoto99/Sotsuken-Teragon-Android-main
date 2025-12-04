@@ -5,6 +5,9 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.Toast
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -14,8 +17,11 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.sotugyo_kenkyu.R
+import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job // ★追加
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 class FavoriteFragment : Fragment() {
@@ -24,7 +30,7 @@ class FavoriteFragment : Fragment() {
     private val folderList = mutableListOf<RecipeFolder>()
     private lateinit var adapter: FolderAdapter
 
-    // ★追加: 読み込み処理を管理する変数
+    // 読み込み処理を管理する変数
     private var loadJob: Job? = null
 
     override fun onCreateView(
@@ -47,6 +53,13 @@ class FavoriteFragment : Fragment() {
             }
         }
 
+        // ★追加: フォルダ追加ボタンの設定
+        // (fragment_favorite.xml に ImageButton id:btnAddFolder がある前提)
+        val btnAddFolder = view.findViewById<ImageButton>(R.id.btnAddFolder)
+        btnAddFolder?.setOnClickListener {
+            showCreateFolderDialog()
+        }
+
         recyclerView = view.findViewById(R.id.recyclerViewFavorites)
         recyclerView.layoutManager = LinearLayoutManager(context)
 
@@ -60,9 +73,6 @@ class FavoriteFragment : Fragment() {
             }
         )
         recyclerView.adapter = adapter
-
-        // ここでの loadFolders() は削除し、onResume に任せます
-        // loadFolders()
     }
 
     override fun onResume() {
@@ -72,7 +82,7 @@ class FavoriteFragment : Fragment() {
     }
 
     private fun loadFolders() {
-        // ★ポイント1: 前回の読み込み処理が生きていたらキャンセルする
+        // 前回の読み込み処理が生きていたらキャンセルする
         loadJob?.cancel()
 
         loadJob = lifecycleScope.launch {
@@ -80,7 +90,7 @@ class FavoriteFragment : Fragment() {
                 // Firestoreから取得
                 val userFolders = FolderRepository.getFolders()
 
-                // ★ポイント2: リストを完全にクリアしてから作り直す
+                // リストを完全にクリアしてから作り直す
                 folderList.clear()
 
                 // 先頭に「すべてのお気に入り」を追加
@@ -97,6 +107,64 @@ class FavoriteFragment : Fragment() {
                 }
             }
         }
+    }
+
+    // ★追加: フォルダ作成ダイアログを表示
+    private fun showCreateFolderDialog() {
+        val context = requireContext()
+        val editText = EditText(context)
+        editText.hint = "フォルダ名 (例: 週末の作り置き)"
+
+        // レイアウト調整（左右に少し余白を入れる）
+        val container = FrameLayout(context)
+        val params = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        params.leftMargin = (24 * resources.displayMetrics.density).toInt()
+        params.rightMargin = (24 * resources.displayMetrics.density).toInt()
+        editText.layoutParams = params
+        container.addView(editText)
+
+        AlertDialog.Builder(context)
+            .setTitle("新しいフォルダを作成")
+            .setView(container)
+            .setPositiveButton("作成") { _, _ ->
+                val folderName = editText.text.toString().trim()
+                if (folderName.isNotEmpty()) {
+                    createNewFolder(folderName)
+                } else {
+                    Toast.makeText(context, "フォルダ名を入力してください", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("キャンセル", null)
+            .show()
+    }
+
+    // ★追加: Firestoreにフォルダを作成する処理
+    private fun createNewFolder(folderName: String) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+
+        // 新しいフォルダのデータ
+        val newFolderData = hashMapOf(
+            "name" to folderName,
+            "recipeIds" to emptyList<String>(),
+            "createdAt" to Timestamp.now()
+        )
+
+        FirebaseFirestore.getInstance()
+            .collection("users")
+            .document(user.uid)
+            .collection("folders")
+            .add(newFolderData)
+            .addOnSuccessListener {
+                Toast.makeText(context, "フォルダ「$folderName」を作成しました！", Toast.LENGTH_SHORT).show()
+                // 一覧を再読み込みして反映
+                loadFolders()
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(context, "作成に失敗しました: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
     }
 
     private fun showDeleteConfirmDialog(folder: RecipeFolder) {
