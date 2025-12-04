@@ -37,7 +37,7 @@ class RecordFragment : Fragment() {
     ): View? {
         return inflater.inflate(R.layout.fragment_record, container, false)
     }
-
+    //【AI料理提案を一時停止】
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -69,21 +69,34 @@ class RecordFragment : Fragment() {
             textAiComment.text = comment
         }
 
-        viewModel.loadInitialComment()
 
-        // ★修正: 吹き出しタップ時の処理
+
+
+        //【AI料理提案を一時停止】//
+        //  【AI料理提案を一時停止】   //
+        //      【AI料理提案を一時停止】   //
+        //          【AI料理提案を一時停止】   //
+        //viewModel.loadInitialComment()        //
+
+
+
+        //【AI料理提案を一時停止】//
+        //  【AI料理提案を一時停止】   //
+        //      【AI料理提案を一時停止】   //
+        //          【AI料理提案を一時停止】   //
+        // ★修正: 吹き出しタップ時の処理（ここをコメントアウトして無効化！）
+        /*
         layoutAiAdvice.setOnClickListener {
-            // 現在表示されているコメントを取得
-            val currentComment = viewModel.aiComment.value ?: ""
-
-            // ★変更: PromptRepositoryの関数を使用してメッセージを作成
-            val contextMessage = PromptRepository.createAdviceMessage(currentComment)
-
-            AiChatSessionManager.pendingContext = contextMessage
-
-            // 親のアクティビティ(HomeActivity)にあるBottomNavigationを操作して「AIチャットタブ」へ切り替える
-            activity?.findViewById<BottomNavigationView>(R.id.bottomNavigation)?.selectedItemId = R.id.nav_ai
+             val currentComment = textAiComment.text.toString()
+             if (currentComment.isNotEmpty()) {
+                 // AI画面へ遷移し、プロンプトを渡す処理
+                 val prompt = createAdviceMessage(currentComment)
+                 // ここで画面遷移しているコード（親のActivityやFragment経由など）
+                 (activity as? HomeActivity)?.navigateToAiChat(prompt)
+             }
         }
+        */
+
 
         loadRecords()
     }

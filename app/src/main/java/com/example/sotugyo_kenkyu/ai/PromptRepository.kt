@@ -144,9 +144,13 @@ object PromptRepository {
 
 
     // --- ★追加: 記録画面から送るメッセージを作成する関数 ---
-    fun createAdviceMessage(comment: String): String {
-        return "さっきのアドバイス「$comment」について、もう少し詳しく教えて！"
-    }
+    //【AI料理提案を一時停止】//
+    //  【AI料理提案を一時停止】   //
+    //      【AI料理提案を一時停止】   //
+    //          【AI料理提案を一時停止】   //
+    //fun createAdviceMessage(comment: String): String {
+    //    return "さっきのアドバイス「$comment」について、もう少し詳しく教えて！"
+    //}
 
     /** Firestore から systemPrompt を取得（失敗時は DEFAULT_PROMPT） */
     suspend fun getSystemPrompt(): String {
