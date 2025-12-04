@@ -1,5 +1,6 @@
 package com.example.sotugyo_kenkyu.favorite
 
+import android.app.AlertDialog
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -27,7 +28,6 @@ class FolderDetailFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            // Serializableとして受け取る
             targetFolder = it.getSerializable("TARGET_FOLDER") as RecipeFolder
         }
     }
@@ -36,7 +36,6 @@ class FolderDetailFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // 既存のレシピ一覧画面のレイアウトを使い回す
         return inflater.inflate(R.layout.fragment_recipe_list_screen, container, false)
     }
 
@@ -47,7 +46,6 @@ class FolderDetailFragment : Fragment() {
         val backButton: ImageButton = view.findViewById(R.id.buttonBack)
         recyclerView = view.findViewById(R.id.recyclerViewRecipes)
 
-        // タイトル設定
         titleText.text = targetFolder.name
 
         backButton.setOnClickListener {
@@ -59,11 +57,9 @@ class FolderDetailFragment : Fragment() {
         adapter = RecipeAdapter(
             recipeList,
             onFavoriteClick = { recipe ->
-                // ★修正: 削除処理を実行するメソッドを呼ぶ
-                removeRecipe(recipe)
+                showActionDialog(recipe)
             },
             onItemClick = { recipe ->
-                // 詳細画面へ遷移
                 val fragment = RecipeDetailFragment()
                 val args = Bundle()
                 args.putSerializable("RECIPE_DATA", recipe)
@@ -80,31 +76,80 @@ class FolderDetailFragment : Fragment() {
         loadRecipes()
     }
 
-    // ★追加: レシピを削除するメソッド
-    private fun removeRecipe(recipe: Recipe) {
+    /**
+     * メニュー表示のロジック
+     */
+    private fun showActionDialog(recipe: Recipe) {
+        val isAllFavorites = (targetFolder.id == "ALL_FAVORITES")
+
+        // ★修正: 文言と選択肢を要件に合わせて変更
+        val options = if (isAllFavorites) {
+            // すべてのお気に入り：「フォルダに追加」（コピー）
+            arrayOf("フォルダに追加", "完全削除（すべてのお気に入りから解除）")
+        } else {
+            // 個別フォルダ：「フォルダに移動」（移動）
+            arrayOf("このフォルダから外す", "フォルダに移動", "完全削除（すべてのお気に入りから解除）")
+        }
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("操作を選択")
+            .setItems(options) { _, which ->
+                if (isAllFavorites) {
+                    when (which) {
+                        0 -> showAddToFolderDialog(recipe, null) // null = 移動元なし（コピー扱い）
+                        1 -> deleteRecipeCompletely(recipe)
+                    }
+                } else {
+                    when (which) {
+                        0 -> removeRecipeFromThisFolder(recipe)
+                        1 -> showAddToFolderDialog(recipe, targetFolder.id) // IDあり = 移動扱い
+                        2 -> deleteRecipeCompletely(recipe)
+                    }
+                }
+            }
+            .setOnDismissListener {
+                adapter.notifyDataSetChanged()
+            }
+            .show()
+    }
+
+    /**
+     * ★修正: 移動元のフォルダID (sourceFolderId) を渡せるように変更
+     * sourceFolderId が null なら「追加（コピー）」、あれば「移動」として扱います
+     */
+    private fun showAddToFolderDialog(recipe: Recipe, sourceFolderId: String?) {
+        val sheet = AddToFolderBottomSheet(recipe, sourceFolderId)
+
+        // 処理が終わって閉じたときにリストを更新する（移動した場合、この画面から消すため）
+        sheet.onDismissListener = {
+            loadRecipes()
+        }
+
+        sheet.show(parentFragmentManager, "AddToFolderBottomSheet")
+    }
+
+    private fun removeRecipeFromThisFolder(recipe: Recipe) {
         lifecycleScope.launch {
             try {
-                // ★修正前：条件分岐で片方だけ消していた
-                /*
-                if (targetFolder.id == "ALL_FAVORITES") {
-                    FolderRepository.removeGlobalFavorite(recipe.id)
-                } else {
-                    FolderRepository.removeRecipeFromFolder(targetFolder.id, recipe.id)
-                }
-                */
-
-                // ★修正後：どこから呼んでも「完全削除」を実行する
-                FolderRepository.deleteRecipeCompletely(recipe.id)
-
-                // 成功したらリストから消して画面更新
+                FolderRepository.removeRecipeFromFolder(targetFolder.id, recipe.id)
                 recipeList.remove(recipe)
                 adapter.notifyDataSetChanged()
-
-                Toast.makeText(context, "お気に入りから削除しました", Toast.LENGTH_SHORT).show()
-
+                Toast.makeText(context, "フォルダから外しました", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
-                Toast.makeText(context, "削除に失敗しました", Toast.LENGTH_SHORT).show()
-                e.printStackTrace()
+                Toast.makeText(context, "エラー: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun deleteRecipeCompletely(recipe: Recipe) {
+        lifecycleScope.launch {
+            try {
+                FolderRepository.deleteRecipeCompletely(recipe.id)
+                recipeList.remove(recipe)
+                adapter.notifyDataSetChanged()
+                Toast.makeText(context, "お気に入りを解除しました", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "削除失敗: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -113,25 +158,17 @@ class FolderDetailFragment : Fragment() {
         lifecycleScope.launch {
             try {
                 val recipes = if (targetFolder.id == "ALL_FAVORITES") {
-                    // 「すべて」の場合はお気に入り全件を取得
                     FolderRepository.getAllFavorites()
                 } else {
-                    // 特定のフォルダ内のレシピを取得
                     FolderRepository.getRecipesInFolder(targetFolder.id)
                 }
 
                 recipeList.clear()
-                // 一覧表示用にすべて「お気に入り済み(true)」として扱う
                 recipes.forEach { it.isFavorite = true }
                 recipeList.addAll(recipes)
                 adapter.notifyDataSetChanged()
-
-                if (recipes.isEmpty()) {
-                    Toast.makeText(context, "このフォルダは空です", Toast.LENGTH_SHORT).show()
-                }
-
             } catch (e: Exception) {
-                Toast.makeText(context, "読み込みエラー: ${e.message}", Toast.LENGTH_SHORT).show()
+                // エラーハンドリング
             }
         }
     }
