@@ -2,6 +2,7 @@ package com.example.sotugyo_kenkyu.record
 
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri // ★追加
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageButton
@@ -41,6 +42,13 @@ class RecordDetailActivity : AppCompatActivity() {
     private lateinit var imageAuthorIcon: ImageView
     private lateinit var textAuthorName: TextView
 
+    // ★追加: レシピ表示用UI
+    private lateinit var dividerRecipe: View
+    private lateinit var labelRecipe: TextView
+    private lateinit var containerRecipe: View
+    private lateinit var imageRecipeThumbnail: ImageView
+    private lateinit var textRecipeTitle: TextView
+
     // いいね用UI
     private lateinit var layoutDetailLike: LinearLayout
     private lateinit var iconDetailLike: ImageView
@@ -73,6 +81,13 @@ class RecordDetailActivity : AppCompatActivity() {
         textMemo = findViewById(R.id.textMemo)
         imageAuthorIcon = findViewById(R.id.imageAuthorIcon)
         textAuthorName = findViewById(R.id.textAuthorName)
+
+        // ★追加: レシピUI取得
+        dividerRecipe = findViewById(R.id.dividerRecipe)
+        labelRecipe = findViewById(R.id.labelRecipe)
+        containerRecipe = findViewById(R.id.containerRecipe)
+        imageRecipeThumbnail = findViewById(R.id.imageRecipeThumbnail)
+        textRecipeTitle = findViewById(R.id.textRecipeTitle)
 
         layoutDetailLike = findViewById(R.id.layoutDetailLike)
         iconDetailLike = findViewById(R.id.iconDetailLike)
@@ -124,6 +139,13 @@ class RecordDetailActivity : AppCompatActivity() {
                 intent.putExtra("IMAGE_URL", currentRecord!!.imageUrl)
                 intent.putExtra("IS_PUBLIC", currentRecord!!.isPublic)
                 intent.putExtra("RATING", currentRecord!!.rating)
+
+                // ★修正: レシピ情報も渡す
+                intent.putExtra("RECIPE_ID", currentRecord!!.recipeId)
+                intent.putExtra("RECIPE_TITLE", currentRecord!!.recipeTitle)
+                intent.putExtra("RECIPE_URL", currentRecord!!.recipeUrl)
+                intent.putExtra("RECIPE_IMAGE_URL", currentRecord!!.recipeImageUrl)
+
                 if (currentRecord!!.date != null) {
                     intent.putExtra("DATE_TIMESTAMP", currentRecord!!.date!!.toDate().time)
                 }
@@ -139,6 +161,7 @@ class RecordDetailActivity : AppCompatActivity() {
         }
     }
 
+    // ... (toggleLike, sendLikeNotification, updateLikeUI は変更なし) ...
     // ★★★ いいね切り替え処理（通知重複防止版） ★★★
     private fun toggleLike(myUid: String) {
         if (myUid.isEmpty() || recordId == null || userId == null) return
@@ -224,12 +247,19 @@ class RecordDetailActivity : AppCompatActivity() {
     }
 
     private fun displayInitialData() {
+        // ... (既存のIntent受取処理)
         val menuName = intent.getStringExtra("MENU_NAME") ?: ""
         val memo = intent.getStringExtra("MEMO") ?: ""
         val imageUrl = intent.getStringExtra("IMAGE_URL") ?: ""
         val isPublic = intent.getBooleanExtra("IS_PUBLIC", false)
         val rating = intent.getFloatExtra("RATING", 0f)
         val timestamp = intent.getLongExtra("DATE_TIMESTAMP", 0)
+
+        // ★追加: Intentからレシピ情報の初期値を受け取る（もしあれば）
+        val rId = intent.getStringExtra("RECIPE_ID") ?: ""
+        val rTitle = intent.getStringExtra("RECIPE_TITLE") ?: ""
+        val rUrl = intent.getStringExtra("RECIPE_URL") ?: ""
+        val rImg = intent.getStringExtra("RECIPE_IMAGE_URL") ?: ""
 
         val likedIds = intent.getStringArrayListExtra("LIKED_USER_IDS")
         if (likedIds != null) {
@@ -245,9 +275,15 @@ class RecordDetailActivity : AppCompatActivity() {
             imageUrl = imageUrl,
             isPublic = isPublic,
             rating = rating,
-            likedUserIds = likedIds?.toList() ?: emptyList()
+            likedUserIds = likedIds?.toList() ?: emptyList(),
+
+            // ★追加: レシピ情報
+            recipeId = rId,
+            recipeTitle = rTitle,
+            recipeUrl = rUrl,
+            recipeImageUrl = rImg
         )
-        updateUI(menuName, memo, isPublic, rating, timestamp, imageUrl)
+        updateUI(currentRecord!!)
     }
 
     override fun onResume() {
@@ -269,27 +305,20 @@ class RecordDetailActivity : AppCompatActivity() {
                     if (record != null) {
                         currentRecord = record
 
-                        // データ同期
                         currentLikedUserIds.clear()
                         currentLikedUserIds.addAll(record.likedUserIds)
 
                         val myUid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
                         updateLikeUI(myUid)
 
-                        val timestamp = record.date?.toDate()?.time ?: 0L
-                        updateUI(
-                            record.menuName,
-                            record.memo,
-                            record.isPublic,
-                            record.rating,
-                            timestamp,
-                            record.imageUrl
-                        )
+                        // UI更新関数へRecordごと渡す
+                        updateUI(record)
                     }
                 }
             }
     }
 
+    // ... (loadAuthorInfo は変更なし) ...
     private fun loadAuthorInfo(authorId: String) {
         if (authorId.isEmpty()) return
         FirebaseFirestore.getInstance().collection("users").document(authorId)
@@ -309,18 +338,12 @@ class RecordDetailActivity : AppCompatActivity() {
             }
     }
 
-    private fun updateUI(
-        menuName: String,
-        memo: String,
-        isPublic: Boolean,
-        rating: Float,
-        timestamp: Long,
-        imageUrl: String
-    ) {
-        textMenuName.text = menuName
-        textMemo.text = memo
+    // ★修正: 引数をRecordオブジェクトに変更して一括更新
+    private fun updateUI(record: Record) {
+        textMenuName.text = record.menuName
+        textMemo.text = record.memo
 
-        if (isPublic) {
+        if (record.isPublic) {
             textPublicStatus.text = "公開中"
             textPublicStatus.setTextColor(Color.parseColor("#4CAF50"))
         } else {
@@ -328,8 +351,9 @@ class RecordDetailActivity : AppCompatActivity() {
             textPublicStatus.setTextColor(Color.parseColor("#888888"))
         }
 
-        ratingBar.rating = rating
+        ratingBar.rating = record.rating
 
+        val timestamp = record.date?.toDate()?.time ?: 0L
         if (timestamp > 0) {
             val date = Date(timestamp)
             textDate.text = SimpleDateFormat("yyyy/MM/dd", Locale.JAPAN).format(date)
@@ -339,16 +363,48 @@ class RecordDetailActivity : AppCompatActivity() {
             textTime.text = ""
         }
 
-        if (imageUrl.isNotEmpty()) {
-            Glide.with(this).load(imageUrl).centerCrop().into(imageFood)
+        if (record.imageUrl.isNotEmpty()) {
+            Glide.with(this).load(record.imageUrl).centerCrop().into(imageFood)
         } else {
             Glide.with(this).load(R.drawable.background_with_logo).centerCrop().into(imageFood)
+        }
+
+        // ★追加: レシピ情報の表示制御
+        if (record.recipeId.isNotEmpty()) {
+            dividerRecipe.visibility = View.VISIBLE
+            labelRecipe.visibility = View.VISIBLE
+            containerRecipe.visibility = View.VISIBLE
+
+            textRecipeTitle.text = record.recipeTitle
+
+            if (record.recipeImageUrl.isNotEmpty()) {
+                Glide.with(this).load(record.recipeImageUrl).centerCrop().into(imageRecipeThumbnail)
+            } else {
+                imageRecipeThumbnail.setImageResource(R.drawable.background_with_logo)
+            }
+
+            // クリックでブラウザ起動
+            containerRecipe.setOnClickListener {
+                if (record.recipeUrl.isNotEmpty()) {
+                    try {
+                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(record.recipeUrl))
+                        startActivity(browserIntent)
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "リンクを開けませんでした", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        } else {
+            dividerRecipe.visibility = View.GONE
+            labelRecipe.visibility = View.GONE
+            containerRecipe.visibility = View.GONE
         }
 
         val myUid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
         updateLikeUI(myUid)
     }
 
+    // ... (showDeleteConfirmation, deleteRecord は変更なし) ...
     private fun showDeleteConfirmation() {
         AlertDialog.Builder(this)
             .setTitle("記録を削除")

@@ -1,6 +1,7 @@
 package com.example.sotugyo_kenkyu.record
 
 import android.app.DatePickerDialog
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -25,14 +26,16 @@ import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.example.sotugyo_kenkyu.R
 import com.example.sotugyo_kenkyu.ai.PromptRepository
+import com.example.sotugyo_kenkyu.recipe.Recipe
+import com.example.sotugyo_kenkyu.recipe.RecipeSelectActivity
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.ai.GenerativeModel
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.GenerativeBackend
 import com.google.firebase.ai.type.content
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +60,9 @@ class RecordInputActivity : AppCompatActivity() {
     private var currentRating: Float = 0f
     private var originalPostedAt: Timestamp? = null // 既存の公開日時
 
+    // ★追加: 選択されたレシピを保持する変数
+    private var selectedRecipe: Recipe? = null
+
     // ★ 画像判定用 Firebase AI Logic モデル
     private val imageJudgeModel: GenerativeModel by lazy {
         Firebase.ai(backend = GenerativeBackend.googleAI())
@@ -73,6 +79,18 @@ class RecordInputActivity : AppCompatActivity() {
                     .into(imagePhoto)
 
                 findViewById<View>(R.id.layoutPhotoPlaceholder).visibility = View.GONE
+            }
+        }
+
+    // ★追加: レシピ選択画面へのランチャー
+    private val recipeSelectLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK) {
+                val recipe = result.data?.getSerializableExtra("SELECTED_RECIPE") as? Recipe
+                if (recipe != null) {
+                    selectedRecipe = recipe
+                    updateRecipeUi()
+                }
             }
         }
 
@@ -133,7 +151,22 @@ class RecordInputActivity : AppCompatActivity() {
                 Glide.with(this).load(originalImageUrl).centerCrop().into(imagePhoto)
                 findViewById<View>(R.id.layoutPhotoPlaceholder).visibility = View.GONE
             }
+
+            // ★追加: 既存のレシピ情報の復元
+            // 呼び出し元(RecordDetailActivity等)でこれらのExtraをputしている前提
+            val rId = intent.getStringExtra("RECIPE_ID")
+            if (!rId.isNullOrEmpty()) {
+                selectedRecipe = Recipe(
+                    id = rId,
+                    recipeTitle = intent.getStringExtra("RECIPE_TITLE") ?: "",
+                    recipeUrl = intent.getStringExtra("RECIPE_URL") ?: "",
+                    foodImageUrl = intent.getStringExtra("RECIPE_IMAGE_URL") ?: ""
+                )
+            }
         }
+
+        // ★追加: レシピ表示の更新（初期表示）
+        updateRecipeUi()
 
         // 初期状態のスイッチテキストを設定
         updateSwitchText(switchPublic, switchPublic.isChecked)
@@ -170,9 +203,11 @@ class RecordInputActivity : AppCompatActivity() {
             ).show()
         }
 
-        // レシピ紐づけ（仮）
+        // レシピ紐づけ
         containerRecipe.setOnClickListener {
-            Toast.makeText(this, "レシピ選択は未実装です", Toast.LENGTH_SHORT).show()
+            // ★変更: レシピ選択Activityを起動
+            val intent = Intent(this, RecipeSelectActivity::class.java)
+            recipeSelectLauncher.launch(intent)
         }
 
         // 保存ボタン
@@ -266,6 +301,20 @@ class RecordInputActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+    }
+
+    // ★追加: レシピ選択状態をUIに反映
+    private fun updateRecipeUi() {
+        val textRecipeName = findViewById<TextView>(R.id.textRecipeName)
+        if (selectedRecipe != null) {
+            textRecipeName.text = selectedRecipe!!.recipeTitle
+            // 必要に応じて色を変更
+            textRecipeName.setTextColor(getColor(R.color.black))
+        } else {
+            textRecipeName.text = "レシピを選択"
+            // デフォルトの色（XMLに準拠するか、明示的に指定）
+            textRecipeName.setTextColor(getColor(android.R.color.darker_gray))
         }
     }
 
@@ -394,12 +443,16 @@ class RecordInputActivity : AppCompatActivity() {
             val updateData = hashMapOf<String, Any>(
                 "menuName" to menuName,
                 "date" to recordDate,
-                // postedAt は null の可能性があるので Any? にしたいが、
-                // 既存の型を崩さないように、公開時のみ入れる運用を想定
                 "memo" to memo,
                 "imageUrl" to imageUrl,
                 "isPublic" to isPublic,
-                "rating" to currentRating
+                "rating" to currentRating,
+
+                // ★追加: レシピ情報の更新
+                "recipeId" to (selectedRecipe?.id ?: ""),
+                "recipeTitle" to (selectedRecipe?.recipeTitle ?: ""),
+                "recipeUrl" to (selectedRecipe?.recipeUrl ?: ""),
+                "recipeImageUrl" to (selectedRecipe?.foodImageUrl ?: "")
             )
 
             // postedAt を更新する必要があるときだけフィールドに含める
@@ -427,7 +480,13 @@ class RecordInputActivity : AppCompatActivity() {
                 memo = memo,
                 imageUrl = imageUrl,
                 isPublic = isPublic,
-                rating = 0f
+                rating = 0f,
+
+                // ★追加: レシピ情報の保存
+                recipeId = selectedRecipe?.id ?: "",
+                recipeTitle = selectedRecipe?.recipeTitle ?: "",
+                recipeUrl = selectedRecipe?.recipeUrl ?: "",
+                recipeImageUrl = selectedRecipe?.foodImageUrl ?: ""
             )
 
             userRecordsRef.add(newRecord)
