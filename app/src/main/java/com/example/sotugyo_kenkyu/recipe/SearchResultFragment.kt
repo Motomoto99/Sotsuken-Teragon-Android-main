@@ -30,6 +30,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import android.app.Activity
+import android.content.Intent
 
 class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
 
@@ -56,12 +58,17 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
     private val client = OkHttpClient()
     private val myJsonParser = Json { ignoreUnknownKeys = true }
 
+    // ★追加: 選択モードフラグ
+    private var isSelectionMode: Boolean = false
+
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
         // 前画面からのキーワード取得
         val initialKeyword = arguments?.getString("KEY_SEARCH_WORD") ?: ""
+        // ★追加: 選択モードフラグ取得
+        isSelectionMode = arguments?.getBoolean("IS_SELECTION_MODE") ?: false
 
         historyManager = SearchHistoryManager(requireContext())
 
@@ -90,7 +97,8 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
         recipeAdapter = RecipeAdapter(
             recipeList = emptyList(),
             onFavoriteClick = { recipe -> toggleFavorite(recipe) }, // お気に入り処理
-            onItemClick = { recipe -> navigateToDetail(recipe) }    // 詳細画面へ
+            // ★変更: クリック時の処理をメソッドに委譲
+            onItemClick = { recipe -> handleItemClick(recipe) }
         )
         recyclerView.adapter = recipeAdapter
 
@@ -252,6 +260,20 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
                 }
         } else {
             favoriteRef.delete()
+        }
+    }
+
+    // ★追加・修正: アイテムクリック時のハンドリング
+    private fun handleItemClick(recipe: Recipe) {
+        if (isSelectionMode) {
+            // 選択モードなら、結果をセットしてActivityを終了
+            val resultIntent = Intent()
+            resultIntent.putExtra("SELECTED_RECIPE", recipe) // RecipeはSerializable
+            requireActivity().setResult(Activity.RESULT_OK, resultIntent)
+            requireActivity().finish()
+        } else {
+            // 通常モードなら詳細画面へ遷移（既存の処理）
+            navigateToDetail(recipe)
         }
     }
 
