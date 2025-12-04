@@ -21,6 +21,12 @@ data class Record(
     // いいねしているユーザーID
     val likedUserIds: List<String> = emptyList(),
 
-    // ★追加: すでに通知を送ったユーザーID（重複通知防止用）
-    val notifiedUserIds: List<String> = emptyList()
+    // すでに通知を送ったユーザーID（重複通知防止用）
+    val notifiedUserIds: List<String> = emptyList(),
+
+    // ★追加: 紐づけたレシピ情報
+    val recipeId: String = "",
+    val recipeTitle: String = "",
+    val recipeUrl: String = "",       // レシピサイトのURL
+    val recipeImageUrl: String = ""   // レシピ画像のURL
 ) : Serializable
