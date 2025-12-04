@@ -80,6 +80,23 @@
                     android:textStyle="bold"
                     android:textColor="#333333" />
 
+                <Button
+                    android:id="@+id/buttonOpenWeb"
+                    android:layout_width="wrap_content"
+                    android:layout_height="30dp"
+                    android:layout_gravity="end"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/rounded_button_bg"
+                    android:gravity="center"
+                    android:paddingStart="12dp"
+                    android:paddingTop="0dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="0dp"
+                    android:text="楽天レシピで作り方を見る"
+                    android:textColor="@android:color/white"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
@@ -104,17 +121,6 @@
                     android:textSize="16sp"
                     android:textColor="#444444"
                     android:lineSpacingExtra="6dp"/>
-
-                <Button
-                    android:id="@+id/buttonOpenWeb"
-                    android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:layout_marginTop="32dp"
-                    android:text="楽天レシピで作り方を見る"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:background="@drawable/rounded_button_bg"
-                    android:textColor="@android:color/white"/>
 
             </LinearLayout>
         </LinearLayout>
