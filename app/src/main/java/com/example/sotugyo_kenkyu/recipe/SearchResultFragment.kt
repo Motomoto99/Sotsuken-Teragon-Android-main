@@ -263,7 +263,7 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
         fragment.arguments = args
 
         parentFragmentManager.beginTransaction()
-            .replace(R.id.fragment_container, fragment) // ID確認！
+            .add(R.id.fragment_container, fragment) // ID確認！
             .addToBackStack(null)
             .commit()
     }
