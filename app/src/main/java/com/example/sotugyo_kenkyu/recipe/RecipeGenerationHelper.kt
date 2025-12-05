@@ -1,6 +1,8 @@
 package com.example.sotugyo_kenkyu.recipe
 
 import android.util.Log
+import com.google.firebase.FirebaseApp
+import com.google.firebase.ai.FirebaseAI
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.CoroutineScope
@@ -8,12 +10,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
-import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * レシピ手順の生成（Gemini API呼び出し）とFirestoreへの保存を担当するヘルパークラス
@@ -22,11 +18,11 @@ class RecipeGenerationHelper {
 
     private val db = FirebaseFirestore.getInstance()
 
-    // ★★★ ここにGemini APIキーを設定してください ★★★
-    // 注意: アプリ内にキーを置くことはセキュリティリスクがあります（テスト用・個人用として扱ってください）
-    private val GEMINI_API_KEY = "ここにAPIいれてくれぱいせん"
-
-    private val GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$GEMINI_API_KEY"
+    // Geminiモデルの初期化
+    private val generativeModel by lazy {
+        val app = FirebaseApp.getInstance()
+        FirebaseAI.getInstance(app).generativeModel("gemini-2.5-flash")
+    }
 
     /**
      * 手順がない場合にAI生成を実行し、Firestoreに保存する
@@ -46,6 +42,7 @@ class RecipeGenerationHelper {
 
             if (generatedSteps != null && generatedSteps.isNotEmpty()) {
                 // 3. 生成成功 -> Firestoreに保存
+                // ここで saveStepsToFirestore が見つからない場合、この関数の外に定義があるか確認してください
                 saveStepsToFirestore(recipe.id, generatedSteps)
 
                 withContext(Dispatchers.Main) {
@@ -53,20 +50,19 @@ class RecipeGenerationHelper {
                 }
             } else {
                 withContext(Dispatchers.Main) {
-                    onStatusUpdate("手順の生成に失敗しました。\n通信環境やAPIキーを確認してください。")
+                    onStatusUpdate("手順の生成に失敗しました。\n通信環境などを確認してください。")
                 }
             }
         }
     }
 
     /**
-     * Gemini APIを呼び出して手順リストを取得する
+     * Firebase SDK (Vertex AI) を呼び出して手順リストを取得する
      */
-    private fun callGeminiApi(title: String, materials: List<String>): List<String>? {
-        try {
+    private suspend fun callGeminiApi(title: String, materials: List<String>): List<String>? {
+        return try {
             val materialString = materials.joinToString(", ")
 
-            // プロンプト（指示文）
             val promptText = """
                 あなたはプロの料理家です。
                 以下の料理名と材料リストだけを使って、「料理の手順」を生成してください。
@@ -80,69 +76,30 @@ class RecipeGenerationHelper {
                 例: ["まず具材を切ります。", "次に炒めます。"]
             """.trimIndent()
 
-            // JSONボディの作成
-            val jsonBody = JSONObject()
-            val contents = JSONArray()
-            val part = JSONObject()
-            val text = JSONObject()
+            val response = generativeModel.generateContent(promptText)
+            val responseText = response.text
 
-            text.put("text", promptText)
-            part.put("parts", JSONArray().put(text))
-            contents.put(part)
-
-            jsonBody.put("contents", contents)
-
-            // HTTPリクエスト
-            val url = URL(GEMINI_URL)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
-
-            val writer = OutputStreamWriter(conn.outputStream)
-            writer.write(jsonBody.toString())
-            writer.flush()
-            writer.close()
-
-            val responseCode = conn.responseCode
-            if (responseCode == 200) {
-                val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                val response = StringBuilder()
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    response.append(line)
-                }
-                reader.close()
-
-                // レスポンス解析
-                return parseGeminiResponse(response.toString())
+            if (!responseText.isNullOrEmpty()) {
+                parseGeneratedText(responseText)
             } else {
-                Log.e("GeminiAPI", "Error Code: $responseCode")
+                null
             }
 
         } catch (e: Exception) {
             Log.e("GeminiAPI", "Request failed", e)
+            null
         }
-        return null
     }
 
     /**
-     * GeminiのレスポンスJSONから手順リストを抽出する
+     * 生成されたテキストからJSON配列部分を抽出してリストにする
      */
-    private fun parseGeminiResponse(jsonString: String): List<String> {
+    private fun parseGeneratedText(rawText: String): List<String> {
         val steps = ArrayList<String>()
         try {
-            val root = JSONObject(jsonString)
-            val candidates = root.getJSONArray("candidates")
-            val content = candidates.getJSONObject(0).getJSONObject("content")
-            val parts = content.getJSONArray("parts")
-            var text = parts.getJSONObject(0).getString("text")
+            // マークダウン記法が含まれている場合の除去
+            var text = rawText.replace("```json", "").replace("```", "").trim()
 
-            // マークダウン記法の除去 (```json ... ```)
-            text = text.replace("```json", "").replace("```", "").trim()
-
-            // JSON配列としてパース
-            // JSON配列の開始位置を探す（余計な文字が含まれている場合対策）
             val start = text.indexOf('[')
             val end = text.lastIndexOf(']')
 
@@ -152,11 +109,14 @@ class RecipeGenerationHelper {
                 for (i in 0 until jsonArray.length()) {
                     steps.add(jsonArray.getString(i))
                 }
+            } else {
+                Log.w("GeminiAPI", "JSON format not found in response: $rawText")
             }
 
         } catch (e: Exception) {
             Log.e("GeminiAPI", "Parse error", e)
         }
+        // ★ここ重要: try-catchを抜けた後に必ずリストを返す
         return steps
     }
 
@@ -169,7 +129,7 @@ class RecipeGenerationHelper {
         val data = mapOf("recipeSteps" to steps)
 
         db.collection("recipes").document(docId)
-            .set(data, SetOptions.merge()) // 既存データを消さずにマージ
+            .set(data, SetOptions.merge())
             .addOnSuccessListener {
                 Log.d("Firestore", "Recipe steps saved successfully")
             }
