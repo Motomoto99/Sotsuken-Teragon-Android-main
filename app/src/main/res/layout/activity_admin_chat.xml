@@ -16,6 +16,7 @@
         android:background="#F5F5F5"
         android:paddingTop="16dp"
         android:paddingBottom="16dp"
+        android:paddingStart="8dp"
         android:elevation="4dp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
