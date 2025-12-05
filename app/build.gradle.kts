@@ -92,6 +92,9 @@ android {
     aaptOptions {
         noCompress += listOf("tflite", "lite", "uuid", "dic", "fst", "raw", "conf", "json")
     }
+    buildFeatures {
+        viewBinding = true
+    }
 }
 
 dependencies {

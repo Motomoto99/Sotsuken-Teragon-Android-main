@@ -8,6 +8,7 @@
     android:focusable="true"
     android:background="#FFFFFF">
 
+    <!-- トップバー -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
@@ -44,6 +45,7 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- スクロール可能なメインコンテンツ -->
     <ScrollView
         android:layout_width="0dp"
         android:layout_height="0dp"
@@ -58,6 +60,7 @@
             android:orientation="vertical"
             android:paddingBottom="32dp">
 
+            <!-- 料理画像 -->
             <ImageView
                 android:id="@+id/imageFoodDetail"
                 android:layout_width="match_parent"
@@ -71,6 +74,7 @@
                 android:orientation="vertical"
                 android:padding="24dp">
 
+                <!-- 料理タイトル -->
                 <TextView
                     android:id="@+id/textTitleDetail"
                     android:layout_width="match_parent"
@@ -79,6 +83,12 @@
                     android:textSize="24sp"
                     android:textStyle="bold"
                     android:textColor="#333333" />
+
+                <!-- 作り方セクション -->
+
+                <!-- ★修正: IDを textRecipeSteps から textStepsDetail に変更 -->
+
+                <!-- Webボタン -->
 
                 <Button
                     android:id="@+id/buttonOpenWeb"
@@ -97,6 +107,16 @@
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
+                <!-- ★追加: 時間と費用の表示 (ID: textTimeCostDetail) -->
+                <TextView
+                    android:id="@+id/textTimeCostDetail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="⏰ 約15分   💰 300円前後"
+                    android:textSize="14sp"
+                    android:textColor="#666666" />
+
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
@@ -104,6 +124,7 @@
                     android:layout_marginTop="16dp"
                     android:layout_marginBottom="16dp"/>
 
+                <!-- 材料セクション -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -122,7 +143,33 @@
                     android:textColor="#444444"
                     android:lineSpacingExtra="6dp"/>
 
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="24dp"
+                    android:layout_marginBottom="16dp"
+                    android:background="#EEEEEE" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:text="作り方"
+                    android:textColor="#333333"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/textStepsDetail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:lineSpacingExtra="8dp"
+                    android:text="1. 具材を切ります。\n2. フライパンで炒めます。"
+                    android:textColor="#444444"
+                    android:textSize="16sp" />
+
             </LinearLayout>
+
         </LinearLayout>
     </ScrollView>
 
