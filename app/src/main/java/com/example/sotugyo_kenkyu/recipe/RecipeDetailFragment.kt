@@ -16,13 +16,11 @@ import androidx.fragment.app.Fragment
 import com.bumptech.glide.Glide
 import com.example.sotugyo_kenkyu.R
 import com.google.firebase.firestore.FirebaseFirestore
-// SetOptions のインポートは不要になりました（Helper側に移動したため）
 
 class RecipeDetailFragment : Fragment() {
 
     private var recipe: Recipe? = null
     private val db = FirebaseFirestore.getInstance()
-    // ★追加: ヘルパークラスのインスタンス
     private val generationHelper = RecipeGenerationHelper()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,7 +44,6 @@ class RecipeDetailFragment : Fragment() {
             return
         }
 
-        // --- 部品の取得 ---
         val imageFood: ImageView = view.findViewById(R.id.imageFoodDetail)
         val textTitle: TextView = view.findViewById(R.id.textTitleDetail)
         val textTimeCost: TextView = view.findViewById(R.id.textTimeCostDetail)
@@ -87,9 +84,8 @@ class RecipeDetailFragment : Fragment() {
                                 // UI更新
                                 updateUI(fetchedRecipe, textTimeCost, textMaterial, textSteps)
 
-                                // ★★★ 修正点: 別ファイルのヘルパーを使って自動生成をリクエスト ★★★
+                                // 自動生成リクエスト (Helperを使用)
                                 generationHelper.checkAndRequestGeneration(fetchedRecipe) { statusMessage ->
-                                    // コールバック: ヘルパーから返ってきたメッセージを表示
                                     textSteps.text = statusMessage
                                 }
                             }
@@ -105,7 +101,6 @@ class RecipeDetailFragment : Fragment() {
             updateUI(currentRecipe, textTimeCost, textMaterial, textSteps)
         }
 
-        // --- ボタン動作 ---
         buttonWeb.setOnClickListener {
             val url = recipe?.recipeUrl ?: ""
             if (url.isNotEmpty()) {
@@ -114,9 +109,7 @@ class RecipeDetailFragment : Fragment() {
             }
         }
 
-        // ★修正: ActivityでもFragmentでも正しく戻れるように変更
         backButton.setOnClickListener {
-            // parentFragmentManager.popBackStack() // ← これを削除して、下のように変更
             requireActivity().onBackPressedDispatcher.onBackPressed()
         }
     }
@@ -131,10 +124,19 @@ class RecipeDetailFragment : Fragment() {
         val cost = if (data.recipeCost.isNotEmpty()) data.recipeCost else "-"
         timeCostView.text = "⏰ $time   💰 $cost"
 
-        // 材料
+        // ★修正: 材料と分量の表示
         val materials = data.recipeMaterial.orEmpty()
+        val amounts = data.servingAmounts // Recipe.ktに追加されたフィールド
+
         if (materials.isNotEmpty()) {
-            materialView.text = materials.joinToString("\n") { "・ $it" }
+            val builder = StringBuilder()
+            for (i in materials.indices) {
+                val materialName = materials[i]
+                // 分量があれば結合して表示 (例: "・ 豚肉 ... 100g")
+                val amountStr = if (i < amounts.size) " ... ${amounts[i]}" else ""
+                builder.append("・ $materialName$amountStr\n")
+            }
+            materialView.text = builder.toString().trim()
         } else {
             materialView.text = "材料情報なし"
         }
@@ -142,17 +144,14 @@ class RecipeDetailFragment : Fragment() {
         // 手順
         val steps = data.recipeSteps.orEmpty()
         if (steps.isNotEmpty()) {
-            // 配列がある場合（Gemini生成済み）
             val stepsText = steps.mapIndexed { index, step ->
                 "${index + 1}. $step"
             }.joinToString("\n\n")
             stepsView.text = stepsText
         } else if (!data.recipeStepsText.isNullOrEmpty()) {
-            // テキスト形式がある場合
             stepsView.text = data.recipeStepsText
         } else {
-            // 何もない場合は一旦空にするかメッセージ（その後Helperが書き換える）
-            // stepsView.text = "手順データがありません。"
+            // 何もない場合はHelperからのメッセージ待ちか初期状態
         }
     }
 }
