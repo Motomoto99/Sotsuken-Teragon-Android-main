@@ -18,7 +18,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
-import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -42,7 +41,7 @@ class AiFragment : Fragment(), RecognitionListener {
     private lateinit var buttonSend: ImageButton
     private lateinit var buttonChatList: ImageButton
     private lateinit var buttonNewChat: ImageButton
-    private lateinit var buttonMic: ImageButton // マイクボタン
+    private lateinit var buttonMic: ImageButton
     private lateinit var layoutAiLoading: View
 
     private val messages = mutableListOf<ChatMessage>()
@@ -54,12 +53,11 @@ class AiFragment : Fragment(), RecognitionListener {
 
     // 音声認識の状態
     private enum class VoiceState {
-        WAITING_WAKE_WORD, // 「カモンマーシー」待ち
-        LISTENING_COMMAND  // 命令聞き取り中
+        WAITING_WAKE_WORD,
+        LISTENING_COMMAND
     }
     private var voiceState = VoiceState.WAITING_WAKE_WORD
 
-    // 権限リクエスト
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
@@ -78,7 +76,6 @@ class AiFragment : Fragment(), RecognitionListener {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // UI初期化
         recyclerView = view.findViewById(R.id.recyclerViewChat)
         editTextMessage = view.findViewById(R.id.editTextMessage)
         buttonSend = view.findViewById(R.id.buttonSend)
@@ -88,25 +85,14 @@ class AiFragment : Fragment(), RecognitionListener {
         layoutAiLoading = view.findViewById(R.id.layoutAiLoading)
 
         val layoutInput = view.findViewById<View>(R.id.layoutInput)
-        val header = view.findViewById<View>(R.id.header) // ヘッダーを取得
 
-        // 元々のパディングを保持（XMLで設定した16dpなど）
-        val originalHeaderPaddingTop = header.paddingTop
-
-        // キーボード表示時やステータスバーのレイアウト調整
         ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets ->
-            // システムバー（ステータスバーなど）のインセットを取得
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val isImeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
             val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
             val bottomNav = requireActivity().findViewById<View>(R.id.bottomNavigation)
             val bottomNavHeight = bottomNav?.height ?: 0
-
-            // ★修正ポイント: ヘッダーの上部にステータスバー分の余白を追加
-            header.updatePadding(top = originalHeaderPaddingTop + systemBars.top)
-
-            // 下部の入力エリアの調整
             val targetBottomMargin = if (isImeVisible) (imeHeight - bottomNavHeight).coerceAtLeast(0) else 0
+
             layoutInput.updateLayoutParams<ViewGroup.MarginLayoutParams> {
                 this.bottomMargin = targetBottomMargin
             }
@@ -120,7 +106,6 @@ class AiFragment : Fragment(), RecognitionListener {
         buttonSend.isEnabled = false
         updateNewChatButtonState()
 
-        // チャット履歴読み込み
         val currentId = AiChatSessionManager.currentChatId
         viewLifecycleOwner.lifecycleScope.launch {
             try {
@@ -142,7 +127,6 @@ class AiFragment : Fragment(), RecognitionListener {
             }
         }
 
-        // --- ボタン動作 ---
         buttonSend.setOnClickListener {
             hideKeyboard()
             sendMessage()
@@ -164,7 +148,6 @@ class AiFragment : Fragment(), RecognitionListener {
             }
         }
 
-        // マイクボタン: 手動で「聞き取りモード」を開始
         buttonMic.setOnClickListener {
             if (model != null) {
                 startCommandListening()
@@ -173,11 +156,56 @@ class AiFragment : Fragment(), RecognitionListener {
             }
         }
 
-        // 音声認識の初期化開始
         checkPermissionAndInitModel()
     }
 
-    // --- 音声認識ロジック ---
+    // --- 音声認識の制御ロジック (ここが重要) ---
+
+    // ★★★ 修正点1: タブ切り替えで画面が隠れた/現れたときの処理 ★★★
+    override fun onHiddenChanged(hidden: Boolean) {
+        super.onHiddenChanged(hidden)
+        if (hidden) {
+            // 他のタブ（ホームや検索など）に行ったので、音声認識を完全停止
+            stopRecognition()
+        } else {
+            // AIタブに戻ってきたので、音声認識を再開（モデルがあれば）
+            if (model != null) {
+                startWakeWordListening()
+            }
+            checkPendingContextAndSend() // 戻ってきたときについでに保留メッセージ確認
+        }
+    }
+
+    // ★★★ 修正点2: アプリ自体を閉じた/開いたときの処理 ★★★
+    override fun onPause() {
+        super.onPause()
+        // アプリがバックグラウンドに行った時も完全停止
+        stopRecognition()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // アプリに戻ってきた時（かつこの画面が表示中なら）再開
+        // isHidden == false のチェックを入れることで、裏にいるときは再開しないようにする
+        if (!isHidden && model != null) {
+            startWakeWordListening()
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        speechService?.stop()
+        speechService?.shutdown()
+        speechService = null
+    }
+
+    // ★追加: 音声認識を停止するヘルパーメソッド
+    private fun stopRecognition() {
+        speechService?.stop()
+        speechService = null
+    }
+
+    // --- 以下、既存のロジック ---
 
     private fun checkPermissionAndInitModel() {
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO)
@@ -192,7 +220,11 @@ class AiFragment : Fragment(), RecognitionListener {
         StorageService.unpack(requireContext(), "vosk-model-small-ja-0.22", "model",
             { model: Model ->
                 this.model = model
-                startWakeWordListening() // 初期状態はウェイクワード待機
+                // ★修正: 画面が表示されているときだけ開始する
+                // (非同期ロード完了時に、すでに他のタブへ移動している場合があるため)
+                if (isVisible) {
+                    startWakeWordListening()
+                }
             },
             { exception: IOException ->
                 Toast.makeText(requireContext(), "モデルエラー: ${exception.message}", Toast.LENGTH_LONG).show()
@@ -235,7 +267,6 @@ class AiFragment : Fragment(), RecognitionListener {
         }
     }
 
-    // Vosk Listener
     override fun onPartialResult(hypothesis: String) {
         val text = parseVoskResult(hypothesis)
         if (text.isEmpty()) return
@@ -256,7 +287,6 @@ class AiFragment : Fragment(), RecognitionListener {
                 startCommandListening()
             }
         } else {
-            // 聞き取り完了 -> 送信
             sendMessage(manualText = text)
             editTextMessage.hint = "メッセージを入力..."
             startWakeWordListening()
@@ -290,28 +320,10 @@ class AiFragment : Fragment(), RecognitionListener {
     }
 
     private fun isWakeWordDetected(text: String): Boolean {
-        // 「カモン！マーシー！」判定
-        return text.contains("カモン") || (text.contains("マーシー") || text.contains("マシー")) ||
+        return text.contains("カモン") && (text.contains("マーシー") || text.contains("マシー")) ||
                 text.contains("マーシー")
     }
 
-    // --- ライフサイクル ---
-    override fun onPause() {
-        super.onPause()
-        speechService?.setPause(true)
-    }
-    override fun onResume() {
-        super.onResume()
-        speechService?.setPause(false)
-    }
-    override fun onDestroyView() {
-        super.onDestroyView()
-        speechService?.stop()
-        speechService?.shutdown()
-        speechService = null
-    }
-
-    // --- 以下、チャット用ヘルパーメソッド ---
     private fun updateNewChatButtonState() {
         if (::buttonNewChat.isInitialized) buttonNewChat.isEnabled = messages.isNotEmpty()
     }
