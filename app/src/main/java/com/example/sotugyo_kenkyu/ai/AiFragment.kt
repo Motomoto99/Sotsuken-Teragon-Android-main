@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -87,15 +88,25 @@ class AiFragment : Fragment(), RecognitionListener {
         layoutAiLoading = view.findViewById(R.id.layoutAiLoading)
 
         val layoutInput = view.findViewById<View>(R.id.layoutInput)
+        val header = view.findViewById<View>(R.id.header) // ヘッダーを取得
 
-        // キーボード表示時のレイアウト調整
+        // 元々のパディングを保持（XMLで設定した16dpなど）
+        val originalHeaderPaddingTop = header.paddingTop
+
+        // キーボード表示時やステータスバーのレイアウト調整
         ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets ->
+            // システムバー（ステータスバーなど）のインセットを取得
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val isImeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
             val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
             val bottomNav = requireActivity().findViewById<View>(R.id.bottomNavigation)
             val bottomNavHeight = bottomNav?.height ?: 0
-            val targetBottomMargin = if (isImeVisible) (imeHeight - bottomNavHeight).coerceAtLeast(0) else 0
 
+            // ★修正ポイント: ヘッダーの上部にステータスバー分の余白を追加
+            header.updatePadding(top = originalHeaderPaddingTop + systemBars.top)
+
+            // 下部の入力エリアの調整
+            val targetBottomMargin = if (isImeVisible) (imeHeight - bottomNavHeight).coerceAtLeast(0) else 0
             layoutInput.updateLayoutParams<ViewGroup.MarginLayoutParams> {
                 this.bottomMargin = targetBottomMargin
             }
