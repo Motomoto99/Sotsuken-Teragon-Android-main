@@ -21,6 +21,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 
 class RecipeListFragment : Fragment() {
 
@@ -50,6 +54,15 @@ class RecipeListFragment : Fragment() {
 
         db = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
+
+        // レイアウトファイルは SubCategoryFragment と同じ fragment_recipe_list_screen.xml を使っているため IDも同じです
+        val topBar = view.findViewById<ConstraintLayout>(R.id.topBar)
+        ViewCompat.setOnApplyWindowInsetsListener(topBar) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
+            v.updatePadding(top = systemBars.top + originalPaddingTop)
+            insets
+        }
 
         recyclerView = view.findViewById(R.id.recyclerViewRecipes)
         recyclerView.layoutManager = LinearLayoutManager(context)
