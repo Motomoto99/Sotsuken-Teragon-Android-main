@@ -7,13 +7,6 @@ import com.google.firebase.firestore.firestore
 import com.google.firebase.Firebase
 import kotlinx.coroutines.tasks.await
 
-data class ChatSession(
-    val id: String,
-    val title: String,
-    val createdAt: Long,
-    val updatedAt: Long
-)
-
 object ChatRepository {
 
     private val db get() = Firebase.firestore

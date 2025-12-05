@@ -1,4 +1,5 @@
 import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -10,6 +11,7 @@ plugins {
 android {
     namespace = "com.example.sotugyo_kenkyu"
     compileSdk {
+        // 修正せずそのまま
         version = release(36)
     }
 
@@ -38,6 +40,10 @@ android {
 
     buildFeatures {
         buildConfig = true
+        // ViewBindingも必要になるため、念のため有効化推奨ですが
+        // 既存コードになければエラーになる可能性があるため、もしViewBindingエラーが出たら
+        // viewBinding = true をここに追加してください
+        viewBinding = true
     }
 
 
@@ -57,6 +63,34 @@ android {
     }
     kotlinOptions {
         jvmTarget = "11"
+    }
+    sourceSets {
+        getByName("main") {
+            assets {
+                srcDirs("src\\main\\assets", "src\\main\\assets")
+            }
+        }
+    }
+
+    // ★★★ 追加: 重複ファイルエラー対策 ★★★
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/LICENSE.txt"
+            excludes += "META-INF/license.txt"
+            excludes += "META-INF/NOTICE"
+            excludes += "META-INF/NOTICE.txt"
+            excludes += "META-INF/notice.txt"
+            excludes += "META-INF/ASL2.0"
+            excludes += "META-INF/*.kotlin_module"
+        }
+    }
+
+    // ★★★ 追加: モデルファイルが圧縮されないようにする設定 ★★★
+    aaptOptions {
+        noCompress += listOf("tflite", "lite", "uuid", "dic", "fst", "raw", "conf", "json")
     }
 }
 
@@ -95,10 +129,10 @@ dependencies {
     //splashscreenを使用する際に必要
     implementation("androidx.core:core-splashscreen:1.0.1")
 
-    // ★★★ 追加: 下に引っ張って更新するためのライブラリ ★★★
+    // 下に引っ張って更新するためのライブラリ
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
-// ★REST API通信用 (OkHttp)
+    // REST API通信用 (OkHttp)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     implementation("androidx.fragment:fragment-ktx:1.8.1")
@@ -123,4 +157,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
     //画像読み込み（中分類の絵文字風画像表示）
     implementation("io.coil-kt:coil:2.5.0")
+
+    // ★★★ 追加: Vosk 音声認識ライブラリ ★★★
+    implementation("com.alphacephei:vosk-android:0.3.47")
 }

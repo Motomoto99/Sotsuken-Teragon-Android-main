@@ -70,6 +70,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- 入力エリア -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/layoutInput"
         android:layout_width="match_parent"
@@ -83,7 +84,7 @@
             android:id="@+id/editTextMessage"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="12dp"
+            android:layout_marginEnd="8dp"
             android:background="@drawable/rounded_edittext_bg"
             android:hint="メッセージを入力..."
             android:padding="12dp"
@@ -91,9 +92,24 @@
             android:maxLines="4"
             android:inputType="textMultiLine"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toStartOf="@+id/buttonSend"
+            app:layout_constraintEnd_toStartOf="@+id/buttonMic"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
+
+        <!-- マイクボタン (送信ボタンの左) -->
+        <ImageButton
+            android:id="@+id/buttonMic"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="8dp"
+            android:src="@android:drawable/ic_btn_speak_now"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:scaleType="centerInside"
+            app:tint="#757575"
+            android:contentDescription="音声入力"
+            app:layout_constraintEnd_toStartOf="@+id/buttonSend"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageButton
             android:id="@+id/buttonSend"
@@ -107,6 +123,7 @@
             android:contentDescription="送信"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <LinearLayout
