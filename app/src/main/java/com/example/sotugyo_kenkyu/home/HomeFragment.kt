@@ -17,7 +17,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout // 追加
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.sotugyo_kenkyu.R
@@ -35,13 +35,17 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.Query // 追加
 import com.google.firebase.firestore.QuerySnapshot
 
 class HomeFragment : Fragment() {
 
     private var notificationListener: ListenerRegistration? = null
+    private var globalNotificationListener: ListenerRegistration? = null // ★追加: 全体通知用リスナー
     private var userListener: ListenerRegistration? = null
+
     private var currentSnapshots: QuerySnapshot? = null
+    private var globalSnapshots: QuerySnapshot? = null // ★追加: 全体通知データ
     private var lastSeenDate: Timestamp? = null
 
     // ViewModelの初期化
@@ -106,13 +110,13 @@ class HomeFragment : Fragment() {
                 .commit()
         }
 
-        // --- ★追加: SwipeRefreshLayoutの設定 ---
+        // --- SwipeRefreshLayoutの設定 ---
         val swipeRefreshLayout = view.findViewById<SwipeRefreshLayout>(R.id.swipeRefreshLayout)
 
         // 引っ張った時の処理
         swipeRefreshLayout.setOnRefreshListener {
             viewModel.refresh()
-            recommend_recipe() // おすすめレシピもついでに更新
+            recommend_recipe()
         }
 
         // ViewModelのロード状態を監視して、終わったらくるくるを止める
@@ -161,8 +165,6 @@ class HomeFragment : Fragment() {
         super.onStop()
         stopListeners()
     }
-
-    // --- 以下、既存のUI更新メソッドなどはそのまま ---
 
     private fun updateRecentRecordsUI(records: List<Record>) {
         val view = view ?: return
@@ -270,6 +272,7 @@ class HomeFragment : Fragment() {
         val user = FirebaseAuth.getInstance().currentUser ?: return
         val db = FirebaseFirestore.getInstance()
 
+        // 1. ユーザー情報（既読日時）を監視
         if (userListener == null) {
             userListener = db.collection("users").document(user.uid)
                 .addSnapshotListener { snapshot, _ ->
@@ -280,14 +283,28 @@ class HomeFragment : Fragment() {
                 }
         }
 
+        // 2. 自分宛ての通知を監視
         if (notificationListener == null) {
-            // 自分宛ての通知を監視
             notificationListener = db.collection("users").document(user.uid)
                 .collection("notifications")
                 .addSnapshotListener { snapshots, e ->
                     if (e != null) return@addSnapshotListener
                     if (snapshots != null) {
                         currentSnapshots = snapshots
+                        recalculateBadge()
+                    }
+                }
+        }
+
+        // 3. ★追加: 全体へのお知らせ（運営通知）を監視
+        if (globalNotificationListener == null) {
+            globalNotificationListener = db.collection("notifications")
+                .orderBy("date", Query.Direction.DESCENDING)
+                .limit(5) // 最新5件だけ監視（負荷軽減）
+                .addSnapshotListener { snapshots, e ->
+                    if (e != null) return@addSnapshotListener
+                    if (snapshots != null) {
+                        globalSnapshots = snapshots
                         recalculateBadge()
                     }
                 }
@@ -299,28 +316,47 @@ class HomeFragment : Fragment() {
         userListener = null
         notificationListener?.remove()
         notificationListener = null
+        globalNotificationListener?.remove() // ★追加: 解除
+        globalNotificationListener = null
     }
 
+    // ★修正: 個人宛てと全体宛ての両方をチェック
     private fun recalculateBadge() {
         val view = view ?: return
-        val badge: TextView = view.findViewById(R.id.textNotificationBadge)
-        val snapshots = currentSnapshots ?: return
-
+        val badge: TextView = view.findViewById(R.id.textNotificationBadge) // TextViewからViewに変更した場合は適宜キャストを変更してください
         val threshold = lastSeenDate?.toDate()?.time ?: 0L
 
-        var unreadCount = 0
-        for (document in snapshots) {
-            val notification = document.toObject(Notification::class.java)
-            val date = notification.date
+        var hasUnread = false
 
-            if (date != null && date.toDate().time > threshold) {
-                unreadCount++
+        // A. 個人通知のチェック
+        currentSnapshots?.let { snapshots ->
+            for (document in snapshots) {
+                val notification = document.toObject(Notification::class.java)
+                val date = notification.date
+                if (date != null && date.toDate().time > threshold) {
+                    hasUnread = true
+                    break
+                }
             }
         }
 
-        if (unreadCount > 0) {
-            badge.text = if (unreadCount > 99) "99+" else unreadCount.toString()
+        // B. 全体通知のチェック（まだ見つかっていない場合のみ）
+        if (!hasUnread) {
+            globalSnapshots?.let { snapshots ->
+                for (document in snapshots) {
+                    val notification = document.toObject(Notification::class.java)
+                    val date = notification.date
+                    if (date != null && date.toDate().time > threshold) {
+                        hasUnread = true
+                        break
+                    }
+                }
+            }
+        }
+
+        if (hasUnread) {
             badge.visibility = View.VISIBLE
+            badge.text = "" // 赤い丸だけにする
         } else {
             badge.visibility = View.GONE
         }
@@ -330,6 +366,7 @@ class HomeFragment : Fragment() {
         val view = view ?: return
         val recommend_image: ImageView = view.findViewById(R.id.imageRecommended)
         val recommend_text: TextView = view.findViewById(R.id.textRecommendedTitle)
+        val recommend_card: CardView = view.findViewById(R.id.cardRecommended)
 
         val db = FirebaseFirestore.getInstance()
         db.collection("recommend")
@@ -346,12 +383,12 @@ class HomeFragment : Fragment() {
                         recipe.id = doc.id
                         recommend_text.text = recipe.recipeTitle
                         if (recipe.foodImageUrl.isNotEmpty()) {
-                            Glide.with(this).load(recipe.foodImageUrl).into(recommend_image)
+                            Glide.with(this).load(recipe.foodImageUrl).centerCrop().into(recommend_image)
                         } else {
                             recommend_image.setImageResource(R.drawable.funa_smile)
                         }
 
-                        recommend_image.setOnClickListener {
+                        recommend_card.setOnClickListener {
                             val fragment = RecipeDetailFragment()
                             val args = Bundle()
                             args.putSerializable("RECIPE_DATA", recipe)
@@ -365,7 +402,7 @@ class HomeFragment : Fragment() {
                 }
             }
             .addOnFailureListener {
-                Toast.makeText(requireContext(), "データ取得に失敗しました", Toast.LENGTH_SHORT).show()
+                // エラー処理
             }
     }
 }
