@@ -1,6 +1,5 @@
 package com.example.sotugyo_kenkyu.notification
 
-import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.View
@@ -16,6 +15,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.sotugyo_kenkyu.R
+import com.google.android.material.tabs.TabLayout // 追加
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -27,14 +27,12 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.Date // 追加
+import androidx.recyclerview.widget.DividerItemDecoration
+import androidx.core.content.ContextCompat
 
 class NotificationActivity : AppCompatActivity() {
 
-    private lateinit var textLatestAdminMessage: TextView
-    private lateinit var textAdminTime: TextView
+    private lateinit var tabLayout: TabLayout
     private lateinit var recyclerViewNotifications: RecyclerView
     private lateinit var textNoNotification: TextView
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
@@ -44,19 +42,21 @@ class NotificationActivity : AppCompatActivity() {
     private var globalSnap: QuerySnapshot? = null
     private var personalSnap: QuerySnapshot? = null
 
+    // データを保持するリスト
+    private var adminMessages = listOf<Notification>()
+    private var likeMessages = listOf<Notification>()
+    private var iconMap = mapOf<String, String>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_notification)
 
-        textLatestAdminMessage = findViewById(R.id.textLatestAdminMessage)
-        textAdminTime = findViewById(R.id.textAdminTime)
+        tabLayout = findViewById(R.id.tabLayout)
         recyclerViewNotifications = findViewById(R.id.recyclerViewNotifications)
         textNoNotification = findViewById(R.id.textNoNotification)
         swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout)
-
         val backButton = findViewById<ImageButton>(R.id.buttonBack)
-        val buttonAdminChat = findViewById<View>(R.id.buttonAdminChat)
         val header = findViewById<View>(R.id.header)
 
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
@@ -73,13 +73,17 @@ class NotificationActivity : AppCompatActivity() {
 
         backButton.setOnClickListener { finish() }
 
-        // 運営チャット画面（運営・システム通知の履歴）へ
-        buttonAdminChat.setOnClickListener {
-            val intent = Intent(this, AdminChatActivity::class.java)
-            startActivity(intent)
+        recyclerViewNotifications.layoutManager = LinearLayoutManager(this)
+
+        val itemDecoration = DividerItemDecoration(this, DividerItemDecoration.VERTICAL)
+
+        // 先ほど作った drawable をセット（null安全のために !! をつけています）
+        val drawable = ContextCompat.getDrawable(this, R.drawable.divider_line)
+        if (drawable != null) {
+            itemDecoration.setDrawable(drawable)
         }
 
-        recyclerViewNotifications.layoutManager = LinearLayoutManager(this)
+        recyclerViewNotifications.addItemDecoration(itemDecoration)
 
         swipeRefreshLayout.setColorSchemeColors(Color.parseColor("#4CAF50"))
         swipeRefreshLayout.setOnRefreshListener {
@@ -87,6 +91,15 @@ class NotificationActivity : AppCompatActivity() {
             startListeners()
             swipeRefreshLayout.isRefreshing = false
         }
+
+        // ★タブ切り替えリスナー
+        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab?) {
+                updateRecyclerView() // タブが選ばれたらリストを更新
+            }
+            override fun onTabUnselected(tab: TabLayout.Tab?) {}
+            override fun onTabReselected(tab: TabLayout.Tab?) {}
+        })
     }
 
     override fun onResume() {
@@ -107,10 +120,10 @@ class NotificationActivity : AppCompatActivity() {
         if (globalListener == null) {
             globalListener = db.collection("notifications")
                 .orderBy("date", Query.Direction.DESCENDING)
-                .limit(5)
+                .limit(20) // リスト表示用に少し多めに取得
                 .addSnapshotListener { snapshots, _ ->
                     globalSnap = snapshots
-                    updateUI()
+                    processDataAndUpdateUI()
                 }
         }
 
@@ -119,10 +132,10 @@ class NotificationActivity : AppCompatActivity() {
             personalListener = db.collection("users").document(user.uid)
                 .collection("notifications")
                 .orderBy("date", Query.Direction.DESCENDING)
-                .limit(30)
+                .limit(50)
                 .addSnapshotListener { snapshots, _ ->
                     personalSnap = snapshots
-                    updateUI()
+                    processDataAndUpdateUI()
                 }
         }
     }
@@ -134,74 +147,72 @@ class NotificationActivity : AppCompatActivity() {
         personalListener = null
     }
 
-    private fun updateUI() {
-        // --- A. 運営・投稿関連（トーク画面行き） ---
-        val adminMessages = mutableListOf<Notification>()
+    // データを分類・加工して保持し、UI更新を呼ぶ
+    private fun processDataAndUpdateUI() {
+        val tempAdmin = mutableListOf<Notification>()
+        val tempLikes = mutableListOf<Notification>()
 
+        // A. 運営・システム通知
         globalSnap?.let { snap ->
-            adminMessages.addAll(snap.toObjects(Notification::class.java))
+            tempAdmin.addAll(snap.toObjects(Notification::class.java))
         }
         personalSnap?.let { snap ->
-            val others = snap.toObjects(Notification::class.java).filter {
-                !it.title.contains("いいね")
+            val allPersonal = snap.toObjects(Notification::class.java)
+
+            // "いいね" を含むものはLikeリストへ、それ以外はAdminリストへ
+            allPersonal.forEach { item ->
+                if (item.title.contains("いいね")) {
+                    tempLikes.add(item)
+                } else {
+                    tempAdmin.add(item)
+                }
             }
-            adminMessages.addAll(others)
         }
 
-        // 最新1件をカードに表示
-        val latestAdmin = adminMessages.maxByOrNull { it.date?.toDate()?.time ?: 0 }
-        if (latestAdmin != null) {
-            textLatestAdminMessage.text = latestAdmin.content
-            if (latestAdmin.date != null) {
-                val sdf = SimpleDateFormat("MM/dd HH:mm", Locale.JAPAN)
-                textAdminTime.text = sdf.format(latestAdmin.date.toDate())
+        // 日付順にソート
+        adminMessages = tempAdmin.sortedByDescending { it.date?.toDate()?.time ?: 0 }
+        likeMessages = tempLikes.sortedByDescending { it.date?.toDate()?.time ?: 0 }
+
+        // アイコン取得が必要なユーザーIDをリスト化（Like通知の送信者など）
+        val senderUids = (adminMessages + likeMessages).mapNotNull { it.senderUid }.distinct()
+
+        lifecycleScope.launch {
+            if (senderUids.isNotEmpty()) {
+                iconMap = fetchUserIcons(senderUids)
             }
-        } else {
-            textLatestAdminMessage.text = "お知らせはありません"
-            textAdminTime.text = ""
+            // データの準備ができたら表示更新
+            updateRecyclerView()
+
+            // 既読更新処理
+            updateLastSeenDate(adminMessages, likeMessages)
         }
+    }
 
-        // --- B. いいね通知（リスト表示） ---
-        val likeMessages = mutableListOf<Notification>()
-        personalSnap?.let { snap ->
-            val likes = snap.toObjects(Notification::class.java).filter {
-                it.title.contains("いいね")
-            }
-            likeMessages.addAll(likes)
-        }
+    // ★現在のタブに合わせてリストを表示する
+    private fun updateRecyclerView() {
+        val currentTab = tabLayout.selectedTabPosition
+        val targetList = if (currentTab == 0) adminMessages else likeMessages
 
-        if (likeMessages.isNotEmpty()) {
-            likeMessages.sortByDescending { it.date?.toDate()?.time ?: 0 }
-
-            lifecycleScope.launch {
-                val senderUids = likeMessages.mapNotNull { it.senderUid }.distinct()
-                val iconMap = fetchUserIcons(senderUids)
-                recyclerViewNotifications.adapter = NotificationAdapter(likeMessages, iconMap)
-                recyclerViewNotifications.visibility = View.VISIBLE
-                textNoNotification.visibility = View.GONE
-            }
+        if (targetList.isNotEmpty()) {
+            recyclerViewNotifications.adapter = NotificationAdapter(targetList, iconMap)
+            recyclerViewNotifications.visibility = View.VISIBLE
+            textNoNotification.visibility = View.GONE
         } else {
             recyclerViewNotifications.visibility = View.GONE
             textNoNotification.visibility = View.VISIBLE
+            // メッセージをタブごとに変える
+            textNoNotification.text = if (currentTab == 0) "お知らせはありません" else "まだいいねされていません"
         }
-
-        // ★★★ 修正箇所: 既読状態の更新 ★★★
-        // すべての通知（adminMessages + likeMessages）の中で一番新しい日付を探す
-        updateLastSeenDate(adminMessages, likeMessages)
     }
 
-    // すべての通知の中で最新の日付をユーザー情報に記録する
     private fun updateLastSeenDate(adminList: List<Notification>, likeList: List<Notification>) {
         val user = FirebaseAuth.getInstance().currentUser ?: return
-
-        // 両方のリストを合わせて、一番新しい日付を探す
         val allNotifications = adminList + likeList
         val latestNotification = allNotifications.maxByOrNull { it.date?.toDate()?.time ?: 0 }
         val latestDate = latestNotification?.date
 
         if (latestDate != null) {
             val db = FirebaseFirestore.getInstance()
-            // サーバー上の日時を更新（set mergeを使うことで他のフィールドを消さずに更新）
             val updateData = hashMapOf("lastSeenNotificationDate" to latestDate)
             db.collection("users").document(user.uid).set(updateData, SetOptions.merge())
         }
@@ -226,7 +237,6 @@ class NotificationActivity : AppCompatActivity() {
                 }
             }
         }
-
         deferreds.awaitAll().filterNotNull().forEach { (uid, url) ->
             resultMap[uid] = url
         }

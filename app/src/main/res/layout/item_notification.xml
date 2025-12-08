@@ -1,68 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView
+<androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
-    android:layout_marginHorizontal="16dp"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="0dp"
-    app:cardBackgroundColor="@android:color/white">
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="12dp"
+    android:background="?attr/selectableItemBackground">
 
-    <LinearLayout
-        android:layout_width="match_parent"
+    <ImageView
+        android:id="@+id/imgNotificationIcon"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:scaleType="centerCrop"
+        android:src="@drawable/outline_account_circle_24"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <ImageView
+        android:id="@+id/imgNotificationTypeBadge"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:background="@drawable/circle_border_bg"
+        android:src="@drawable/ic_heart_filled"
+        android:padding="3dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@+id/imgNotificationIcon"
+        app:layout_constraintEnd_toEndOf="@+id/imgNotificationIcon"
+        android:translationX="4dp"
+        android:translationY="4dp"/>
+
+    <TextView
+        android:id="@+id/textNotificationDate"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:padding="16dp">
+        android:text="2分"
+        android:textColor="#657786"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBaseline_toBaselineOf="@+id/textNotificationTitle"/>
 
-        <ImageView
-            android:id="@+id/iconNotificationSender"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/outline_account_circle_24"
-            android:scaleType="centerCrop"
-            android:background="@drawable/circle_border_bg"
-            android:padding="1dp"
-            android:layout_marginEnd="16dp"/>
+    <TextView
+        android:id="@+id/textNotificationTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="8dp"
+        android:text="ユーザー名 さんがいいねしました"
+        android:textColor="@android:color/black"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toEndOf="@+id/imgNotificationIcon"
+        app:layout_constraintEnd_toStartOf="@+id/textNotificationDate"
+        app:layout_constraintTop_toTopOf="parent" />
 
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+    <TextView
+        android:id="@+id/textNotificationContent"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="通知の内容がここに入ります"
+        android:textColor="#657786"
+        android:textSize="14sp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        app:layout_constraintStart_toStartOf="@+id/textNotificationTitle"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textNotificationTitle" />
 
-            <TextView
-                android:id="@+id/textTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="タイトル"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:textColor="#404040"/>
-
-            <TextView
-                android:id="@+id/textContent"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="本文がここに入ります"
-                android:textSize="14sp"
-                android:textColor="#666666"
-                android:layout_marginTop="4dp"
-                android:maxLines="2"
-                android:ellipsize="end"/>
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/textDate"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="00/00 00:00"
-            android:textSize="12sp"
-            android:textColor="#888888"
-            android:layout_marginStart="8dp"
-            android:layout_gravity="top"
-            android:layout_marginTop="2dp"/>
-    </LinearLayout>
-</androidx.cardview.widget.CardView>
+</androidx.constraintlayout.widget.ConstraintLayout>
