@@ -47,6 +47,14 @@ class SearchInputFragment : Fragment(R.layout.fragment_search_input) {
             insets
         }
 
+        // 結果画面から「編集したい」と言って戻ってきた場合、その文字をセットする
+        val editKeyword = arguments?.getString("EDIT_KEYWORD")
+        if (!editKeyword.isNullOrEmpty()) {
+            searchEditText.setText(editKeyword)
+            // カーソルを末尾に移動（これがないと編集しにくい）
+            searchEditText.setSelection(editKeyword.length)
+        }
+
         // 3. 履歴リストのセットアップ
         val historyList = historyManager.getHistory()
 
@@ -114,6 +122,12 @@ class SearchInputFragment : Fragment(R.layout.fragment_search_input) {
         // ★追加: 選択モードフラグを次の画面へ渡す
         args.putBoolean("IS_SELECTION_MODE", isSelectionMode)
         resultFragment.arguments = args
+
+        val resultTag = "SEARCH_RESULT_TAG"
+
+        // 「もし履歴の中に『SEARCH_RESULT_TAG』という名札がついた画面があったら、
+        //  そこまで時間を巻き戻して（pop）、その画面自体も含めて（INCLUSIVE）消して！」
+        parentFragmentManager.popBackStack(resultTag, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
 
         parentFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, resultFragment)

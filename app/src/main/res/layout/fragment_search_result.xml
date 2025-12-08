@@ -7,6 +7,7 @@
     android:background="#F5F5F5"
     android:clickable="true"
     android:focusable="true">
+
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/topBarContainer"
         android:layout_width="match_parent"
@@ -24,30 +25,51 @@
             android:layout_height="40dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:padding="8dp"
-            android:src="@drawable/outline_arrow_back_24"
+            android:src="@drawable/ic_arrow_back"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
             app:tint="#333333" />
 
-        <EditText
-            android:id="@+id/resultSearchEditText"
+        <LinearLayout
+            android:id="@+id/searchBarClickArea"
             android:layout_width="0dp"
             android:layout_height="48dp"
             android:layout_marginStart="8dp"
             android:background="@drawable/rounded_search_bar_bg"
-            android:drawableStart="@android:drawable/ic_menu_search"
-            android:drawablePadding="8dp"
-            android:hint="キーワード"
-            android:imeOptions="actionSearch"
-            android:inputType="text"
-            android:maxLines="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
             android:paddingStart="12dp"
-            android:textSize="14sp"
+            android:paddingEnd="4dp"
             app:layout_constraintStart_toEndOf="@id/btnBack"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent"/>
+            app:layout_constraintBottom_toBottomOf="parent">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@android:drawable/ic_menu_search"
+                app:tint="#888888" />
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scrollbars="none"
+                android:layout_gravity="center_vertical"
+                android:fillViewport="true"> <com.google.android.material.chip.ChipGroup
+                android:id="@+id/chipGroupResult"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                app:singleLine="true"
+                app:chipSpacingHorizontal="8dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
+            </com.google.android.material.chip.ChipGroup>
+
+            </HorizontalScrollView>
+        </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
