@@ -10,16 +10,21 @@ data class Recipe(
     // アプリ表示用のお気に入りフラグ（保存はしないのでExclude）
     @get:Exclude var isFavorite: Boolean = false,
 
-    // --- Firestoreのフィールド (すべて var に変更) ---
+    // --- Firestoreのフィールド (読み書きできるよう var に変更) ---
     var recipeTitle: String = "",
     var foodImageUrl: String = "",
     var recipeUrl: String = "",
     var recipeCost: String = "",
     var recipeIndication: String = "",
-    var recipeMaterial: List<String> = emptyList(),
+
+    // null許容かつ初期値を持たせる
+    var recipeMaterial: List<String>? = null,
+
+    // ★追加: 材料に対応する分量リスト
+    var servingAmounts: List<String> = emptyList(),
 
     // カテゴリ情報
-    var primaryCategoryId: String = "", // ★追加: 検索やフィルタリングで重要
+    var primaryCategoryId: String = "",
     var categoryPathNames: List<String> = emptyList(),
     var categoryPathIds: List<String> = emptyList(),
 
