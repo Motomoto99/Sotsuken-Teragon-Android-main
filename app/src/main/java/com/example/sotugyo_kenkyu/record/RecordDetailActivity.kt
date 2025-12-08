@@ -2,7 +2,6 @@ package com.example.sotugyo_kenkyu.record
 
 import android.content.Intent
 import android.graphics.Color
-import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageButton
@@ -28,6 +27,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.core.view.updatePadding
 
 class RecordDetailActivity : AppCompatActivity() {
 
@@ -160,6 +160,15 @@ class RecordDetailActivity : AppCompatActivity() {
 
         buttonDelete.setOnClickListener {
             showDeleteConfirmation()
+        }
+
+        // ★追加: ステータスバーの高さに合わせてpaddingを調整
+        ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            // XMLで設定しているpaddingTop (16dp) に、ステータスバーの高さを足す
+            val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
+            v.updatePadding(top = systemBars.top + originalPaddingTop)
+            insets
         }
     }
 
