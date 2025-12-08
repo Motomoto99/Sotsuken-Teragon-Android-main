@@ -9,6 +9,10 @@ import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.constraintlayout.widget.ConstraintLayout // 追加
+import androidx.core.view.ViewCompat // 追加
+import androidx.core.view.WindowInsetsCompat // 追加
+import androidx.core.view.updatePadding // 追加
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -41,6 +45,15 @@ class FolderDetailFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        val topBar = view.findViewById<ConstraintLayout>(R.id.topBar)
+        ViewCompat.setOnApplyWindowInsetsListener(topBar) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            // 元々のpaddingTop (16dp) にステータスバーの高さを足す
+            val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
+            v.updatePadding(top = systemBars.top + originalPaddingTop)
+            insets
+        }
 
         val titleText: TextView = view.findViewById(R.id.textPageTitle)
         val backButton: ImageButton = view.findViewById(R.id.buttonBack)
