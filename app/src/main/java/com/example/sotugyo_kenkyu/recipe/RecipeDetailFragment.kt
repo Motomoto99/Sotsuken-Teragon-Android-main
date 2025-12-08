@@ -16,6 +16,10 @@ import androidx.fragment.app.Fragment
 import com.bumptech.glide.Glide
 import com.example.sotugyo_kenkyu.R
 import com.google.firebase.firestore.FirebaseFirestore
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 
 class RecipeDetailFragment : Fragment() {
 
@@ -36,6 +40,15 @@ class RecipeDetailFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        val topBar: ConstraintLayout = view.findViewById(R.id.topBar)
+        ViewCompat.setOnApplyWindowInsetsListener(topBar) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            // XMLのpaddingTop="36dp"を上書きし、動的に「ステータスバー + 16dp」にします
+            val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
+            v.updatePadding(top = systemBars.top + originalPaddingTop)
+            insets
+        }
 
         val currentRecipe = recipe
         if (currentRecipe == null) {
