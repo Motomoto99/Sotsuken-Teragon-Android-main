@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>運営管理画面 - Sotsuken Teragon</title>
+    <style>
+        /* リセットと基本設定 */
+        body { margin: 0; padding: 0; font-family: sans-serif; background-color: #f5f5f5; height: 100vh; display: flex; flex-direction: column; }
+        * { box-sizing: border-box; }
+
+        /* ログイン画面用 */
+        .login-wrapper { display: flex; justify-content: center; align-items: center; height: 100vh; width: 100%; padding: 20px; }
+        .login-box { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        
+        /* 管理画面レイアウト */
+        .admin-layout { display: flex; height: 100vh; width: 100%; overflow: hidden; position: relative; }
+        
+        /* サイドバー（PC向け） */
+        .sidebar { width: 260px; background-color: #2c3e50; color: white; display: flex; flex-direction: column; padding: 20px; flex-shrink: 0; transition: transform 0.3s ease; z-index: 1000; }
+        .sidebar h2 { font-size: 1.2rem; margin-bottom: 20px; text-align: center; border-bottom: 1px solid #34495e; padding-bottom: 10px; }
+        .user-info { font-size: 0.8rem; color: #bdc3c7; margin-bottom: 20px; word-break: break-all; }
+        
+        /* サイドバーのメニューボタン */
+        .nav-btn { background: transparent; border: none; color: #ecf0f1; padding: 15px; text-align: left; cursor: pointer; font-size: 1rem; border-radius: 6px; margin-bottom: 5px; transition: background 0.2s; width: 100%; display: flex; align-items: center; }
+        .nav-btn:hover { background-color: #34495e; }
+        .nav-btn.active { background-color: #4CAF50; color: white; font-weight: bold; }
+        
+        /* ログアウトボタン */
+        .logout-btn { margin-top: auto; background-color: #c0392b; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; width: 100%; }
+        
+        /* メインコンテンツエリア */
+        .main-content { flex-grow: 1; padding: 20px; overflow-y: auto; background-color: #ecf0f1; width: 100%; }
+        .content-section { display: none; animation: fadeIn 0.3s; }
+        .content-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* スマホ用ヘッダー */
+        .mobile-header {
+            display: none;
+            background-color: #2c3e50;
+            color: white;
+            height: 60px;
+            position: relative;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        button.menu-toggle {
+            position: absolute !important;
+            left: 15px !important;
+            top: 50% !important;
+            transform: translateY(-50%);
+            background: none !important;
+            border: none !important;
+            color: white !important;
+            font-size: 28px !important;
+            cursor: pointer;
+            padding: 0 !important;
+            margin: 0 !important;
+            z-index: 20;
+            width: auto !important;
+            height: auto !important;
+            line-height: 1;
+        }
+
+        .mobile-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin: 0;
+            pointer-events: none;
+        }
+
+        /* コンテンツ内のパーツ */
+        h1 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #ddd; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.5rem; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        
+        input, textarea, button { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; }
+        button.action-btn { background-color: #4CAF50; color: white; border: none; cursor: pointer; font-weight: bold; width: auto; padding: 10px 20px; min-width: 100px; }
+        
+        .item-row { border-bottom: 1px solid #eee; padding: 15px 0; display: flex; justify-content: space-between; align-items: flex-start; }
+        
+        .delete-btn { background-color: #ff9800; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; width: auto; font-size: 0.9rem; white-space: nowrap; margin-left: 10px; }
+        .delete-btn:hover { background-color: #f57c00; }
+
+        .error-msg { color: red; font-weight: bold; margin-bottom: 10px; display: none; }
+
+        /* 画像など */
+        .content-flex { display: flex; align-items: flex-start; flex-grow: 1; }
+        .thumbnail-image { width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-right: 10px; background-color: #eee; flex-shrink: 0; }
+        .user-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 10px; background-color: #eee; border: 1px solid #ccc; flex-shrink: 0; }
+        .no-image { display: flex; align-items: center; justify-content: center; color: #999; font-size: 10px; text-align: center;}
+        .sub-text { font-size: 0.85rem; color: #666; word-break: break-all; }
+
+        /* オーバーレイ */
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 900; }
+
+        @media (max-width: 768px) {
+            .admin-layout { flex-direction: column; }
+            
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100%;
+                width: 250px;
+                transform: translateX(-100%);
+                box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+            }
+            
+            .sidebar.open { transform: translateX(0); }
+            .overlay.open { display: block; }
+            .mobile-header { display: flex; }
+            .main-content { padding: 15px; padding-bottom: 80px; }
+            h1 { font-size: 1.3rem; }
+            .container { padding: 15px; }
+            button.action-btn { width: 100%; padding: 15px; }
+            .delete-btn { padding: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="login-section" class="login-wrapper">
+        <div class="login-box">
+            <h2>運営管理パネル</h2>
+            <p class="error-msg" id="auth-error"></p>
+            <input type="email" id="email" placeholder="メールアドレス">
+            <input type="password" id="password" placeholder="パスワード">
+            <button class="action-btn" style="width:100%" onclick="login()">ログイン</button>
+        </div>
+    </div>
+
+    <div id="admin-panel" class="admin-layout" style="display:none;">
+        
+        <header class="mobile-header">
+            <button class="menu-toggle" onclick="toggleMenu()">&#9776;</button>
+            <span class="mobile-title">Sotsuken Admin</span>
+        </header>
+
+        <div class="overlay" onclick="toggleMenu()"></div>
+
+        <nav class="sidebar" id="sidebar">
+            <h2>Sotsuken Admin</h2>
+            <div class="user-info">Login: <span id="current-user-email"></span></div>
+            
+            <button class="nav-btn active" onclick="switchTab('notification', this)">📢 お知らせ配信</button>
+            <button class="nav-btn" onclick="switchTab('users', this)">👥 ユーザー一覧</button>
+            <button class="nav-btn" onclick="switchTab('posts', this)">🍽️ 投稿管理</button>
+            
+            <button class="logout-btn" onclick="logout()">ログアウト</button>
+        </nav>
+
+        <main class="main-content">
+            
+            <div id="tab-notification" class="content-section active">
+                <h1>お知らせ配信</h1>
+                <div class="container">
+                    <p>全ユーザーの「運営からのお知らせ」に通知を送ります。</p>
+                    <input type="text" id="notif-title" placeholder="タイトル（例：メンテナンスのお知らせ）" value="運営からのお知らせ">
+                    <textarea id="notif-content" rows="5" placeholder="本文（例：明日12時からメンテナンスを行います。）"></textarea>
+                    <button class="action-btn" onclick="sendNotification()">配信する</button>
+                </div>
+            </div>
+
+            <div id="tab-users" class="content-section">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                    <h1 style="margin:0; border:none;">ユーザー一覧</h1>
+                    <button class="action-btn" style="background-color:#FF9800; width:auto;" onclick="loadUsers()">更新</button>
+                </div>
+                <div class="container" style="padding:0;">
+                    <div id="users-list" style="padding:15px;">データを読み込んでください...</div>
+                </div>
+            </div>
+
+            <div id="tab-posts" class="content-section">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                    <h1 style="margin:0; border:none;">みんなの投稿管理</h1>
+                    <button class="action-btn" style="background-color:#2196F3; width:auto;" onclick="loadPosts()">更新</button>
+                </div>
+                <div class="container" style="padding:0;">
+                    <div style="padding:15px; border-bottom:1px solid #eee;">
+                        <small>最新20件の公開投稿を表示します。</small>
+                    </div>
+                    <div id="posts-list" style="padding:15px;">データを読み込んでください...</div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        // ★ getDoc を追加しました ★
+        import { getFirestore, collection, addDoc, serverTimestamp, getDocs, query, orderBy, limit, deleteDoc, updateDoc, getDoc, doc, where, collectionGroup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // ★設定情報
+        const firebaseConfig = {
+          apiKey: "AIzaSyD474cBefVF_S5TCYHcDAyeeZu34z_9KkI",
+          authDomain: "sotugyo-kenkyu-a0e36.firebaseapp.com",
+          projectId: "sotugyo-kenkyu-a0e36",
+          storageBucket: "sotugyo-kenkyu-a0e36.firebasestorage.app",
+          messagingSenderId: "212042452857",
+          appId: "1:212042452857:web:c7dc60ec96bddebb05e9a8"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const ADMIN_EMAIL = "test@a.aa";
+
+        window.toggleMenu = () => {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.querySelector('.overlay').classList.toggle('open');
+        };
+
+        window.switchTab = (tabId, btnElement) => {
+            document.querySelectorAll('.content-section').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            if(btnElement) btnElement.classList.add('active');
+
+            if(window.innerWidth <= 768) { toggleMenu(); }
+
+            if(tabId === 'users') loadUsers();
+            if(tabId === 'posts') loadPosts();
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            const errorMsg = document.getElementById('auth-error');
+            if (user) {
+                if (user.email === ADMIN_EMAIL) {
+                    document.getElementById('login-section').style.display = 'none';
+                    document.getElementById('admin-panel').style.display = 'flex';
+                    document.getElementById('current-user-email').textContent = user.email;
+                    errorMsg.style.display = 'none';
+                } else {
+                    signOut(auth).then(() => {
+                        errorMsg.textContent = "このアカウントには管理者権限がありません。";
+                        errorMsg.style.display = 'block';
+                    });
+                }
+            } else {
+                document.getElementById('login-section').style.display = 'flex';
+                document.getElementById('admin-panel').style.display = 'none';
+            }
+        });
+
+        window.login = async () => {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('auth-error');
+            errorMsg.style.display = 'none';
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                errorMsg.textContent = "ログイン失敗: " + error.message;
+                errorMsg.style.display = 'block';
+            }
+        };
+
+        window.logout = () => signOut(auth);
+
+        window.sendNotification = async () => {
+            const title = document.getElementById('notif-title').value;
+            const content = document.getElementById('notif-content').value;
+            if (!content) return alert("本文を入力してください");
+            if(!confirm("全ユーザーに通知を送信しますか？")) return;
+            try {
+                await addDoc(collection(db, "notifications"), {
+                    title: title, content: content, date: serverTimestamp()
+                });
+                alert("送信しました！");
+                document.getElementById('notif-content').value = "";
+            } catch (e) { alert("送信エラー: " + e.message); }
+        };
+
+        window.loadUsers = async () => {
+            const listDiv = document.getElementById('users-list');
+            listDiv.innerHTML = "読み込み中...";
+            try {
+                const q = query(collection(db, "users"), limit(50));
+                const querySnapshot = await getDocs(q);
+                listDiv.innerHTML = "";
+                const countDiv = document.createElement('div');
+                countDiv.style.padding = "0 15px 15px 15px";
+                countDiv.style.fontWeight = "bold";
+                countDiv.innerHTML = `登録ユーザー数: ${querySnapshot.size}人 (最大50件)`;
+                listDiv.appendChild(countDiv);
+
+                querySnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const div = document.createElement('div');
+                    div.className = "item-row";
+                    let iconTag = `<div class="user-icon no-image">No Img</div>`;
+                    if (data.photoUrl) { iconTag = `<img src="${data.photoUrl}" class="user-icon">`; }
+                    let lastSeen = "---";
+                    if (data.lastSeenNotificationDate) {
+                        lastSeen = new Date(data.lastSeenNotificationDate.seconds * 1000).toLocaleString();
+                    }
+                    div.innerHTML = `
+                        <div class="content-flex">
+                            ${iconTag}
+                            <div style="min-width:0;">
+                                <strong>${data.username || "名称未設定"}</strong><br>
+                                <span class="sub-text" style="font-size:0.75rem;">UID: ${docSnap.id}</span><br>
+                                <span class="sub-text">最終: ${lastSeen}</span>
+                            </div>
+                        </div>
+                    `;
+                    listDiv.appendChild(div);
+                });
+            } catch (e) {
+                console.error(e);
+                listDiv.innerHTML = "読み込みエラー: " + e.message;
+            }
+        };
+
+        window.loadPosts = async () => {
+            const listDiv = document.getElementById('posts-list');
+            listDiv.innerHTML = "読み込み中...";
+            try {
+                const q = query(
+                    collectionGroup(db, "my_records"),
+                    where("isPublic", "==", true),
+                    orderBy("date", "desc"),
+                    limit(20)
+                );
+                const querySnapshot = await getDocs(q);
+                listDiv.innerHTML = "";
+                if (querySnapshot.empty) {
+                    listDiv.innerHTML = "公開された投稿はありません。";
+                    return;
+                }
+                querySnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const div = document.createElement('div');
+                    div.className = "item-row";
+                    let dateStr = "日時不明";
+                    if(data.date) { dateStr = new Date(data.date.seconds * 1000).toLocaleString(); }
+                    let imgTag;
+                    if (data.imageUrl) { imgTag = `<img src="${data.imageUrl}" class="thumbnail-image">`; } 
+                    else { imgTag = `<div class="thumbnail-image no-image">No Image</div>`; }
+
+                    div.innerHTML = `
+                        <div class="content-flex">
+                            ${imgTag}
+                            <div style="min-width:0;">
+                                <strong>${data.menuName || "料理名なし"}</strong><br>
+                                <span class="sub-text">${dateStr}</span><br>
+                                <span class="sub-text">${data.memo || ""}</span>
+                            </div>
+                        </div>
+                        <button class="delete-btn" onclick="deletePost('${docSnap.ref.path}')">非公開</button>
+                    `;
+                    listDiv.appendChild(div);
+                });
+            } catch (e) {
+                console.error(e);
+                listDiv.innerHTML = "読み込みエラー";
+            }
+        };
+
+        // ★★★ 投稿を非公開にし、ユーザーに通知を送る処理 ★★★
+        window.deletePost = async (path) => {
+            if(!confirm("この投稿を強制的に非公開にしますか？\n（ユーザーに通知が送信されます）")) return;
+            
+            try {
+                const pathSegments = path.split('/');
+                // path: users/{uid}/my_records/{docId}
+                const uid = pathSegments[1];
+                const docRef = doc(db, pathSegments[0], pathSegments[1], pathSegments[2], pathSegments[3]);
+
+                // 1. 料理名を取得（通知メッセージ用）
+                const snap = await getDoc(docRef);
+                const menuName = snap.exists() ? snap.data().menuName : "記録";
+
+                // 2. 投稿を非公開にする
+                await updateDoc(docRef, { isPublic: false });
+
+                // 3. そのユーザーに通知を送る
+                await addDoc(collection(db, "users", uid, "notifications"), {
+                    title: "投稿に関するお知らせ",
+                    content: `あなたの記録「${menuName}」は、運営によって非公開に設定されました。`,
+                    date: serverTimestamp()
+                });
+                
+                alert("非公開にし、ユーザーに通知しました。");
+                loadPosts(); // リスト更新
+            } catch(e) { 
+                alert("処理失敗: " + e.message); 
+            }
+        };
+    </script>
+</body>
+</html>
