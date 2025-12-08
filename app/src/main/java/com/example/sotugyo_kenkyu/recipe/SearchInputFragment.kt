@@ -91,6 +91,18 @@ class SearchInputFragment : Fragment(R.layout.fragment_search_input) {
             }
         }
 
+        // "SEARCH_INPUT_UPDATE" という合言葉でデータが来たら、入力欄を更新するわ
+        parentFragmentManager.setFragmentResultListener("SEARCH_INPUT_UPDATE", viewLifecycleOwner) { _, bundle ->
+            val updatedKeyword = bundle.getString("UPDATED_KEYWORD")
+            if (updatedKeyword != null) {
+                searchEditText.setText(updatedKeyword)
+                // カーソルを末尾に移動
+                if (updatedKeyword.isNotEmpty()) {
+                    searchEditText.setSelection(updatedKeyword.length)
+                }
+            }
+        }
+
         // 6. キャンセルボタン（修正箇所）
         btnCancel.setOnClickListener {
             hideKeyboard(view)
@@ -111,7 +123,6 @@ class SearchInputFragment : Fragment(R.layout.fragment_search_input) {
         // 1. 履歴に保存＆リスト更新
         historyManager.saveHistory(keyword)
         historyAdapter.updateData(historyManager.getHistory())
-
         // 2. キーボードを閉じる
         hideKeyboard(view)
 
@@ -131,7 +142,7 @@ class SearchInputFragment : Fragment(R.layout.fragment_search_input) {
 
         parentFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, resultFragment)
-            .addToBackStack(null)
+            .addToBackStack(resultTag)
             .commit()
 
         Log.d("Search", "検索実行: $keyword")

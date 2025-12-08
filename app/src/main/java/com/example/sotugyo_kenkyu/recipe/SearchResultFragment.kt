@@ -92,20 +92,17 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
         // ★2. 検索バー（またはチップエリア）が押されたら入力画面へ！
         // これがしょうたんのやりたかった「編集モードへの遷移」よ
         val openInputScreen = View.OnClickListener {
-            // 入力画面のインスタンスを作成
             val inputFragment = SearchInputFragment()
-
-            // ★重要：今のキーワードを渡してあげる！
-            // そうしないと入力画面が空っぽで使いにくいからね
             val args = Bundle()
+
+            // ★ポイント：arguments でデータを渡す（setFragmentResultは使わない）
             args.putString("EDIT_KEYWORD", currentKeyword)
             inputFragment.arguments = args
 
             parentFragmentManager.beginTransaction()
-                // アニメーションはお好みで（フェードとか）
                 .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
                 .replace(R.id.fragment_container, inputFragment)
-                .addToBackStack(null)
+                .addToBackStack(null) // ★履歴に残す（これで戻ったらここに来れる）
                 .commit()
         }
 
@@ -145,10 +142,25 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
                             val child = chipGroup.getChildAt(i) as? Chip
                             child?.let { remainingWords.add(it.text.toString()) }
                         }
-                        val newQuery = remainingWords.joinToString(" ")
 
-                        // 3. 新しいワードで再検索（リセット扱い）
-                        resetSearch(newQuery)
+                        if (remainingWords.isEmpty()) {
+                            // 「空文字」を持たせて戻る！
+                            val bundle = Bundle().apply {
+                                putString("UPDATED_KEYWORD", "")
+                            }
+                            parentFragmentManager.setFragmentResult("SEARCH_INPUT_UPDATE", bundle)
+
+                            // 前の画面（検索入力）に戻る
+                            parentFragmentManager.popBackStack()
+                        } else {
+                            // まだワードが残っている場合
+                            val newQuery = remainingWords.joinToString(" ")
+                            currentKeyword = newQuery
+                            // これをやっておかないと、画面を行き来した時に「最初の検索ワード」に戻っちゃうの
+                            arguments?.putString("KEY_SEARCH_WORD", newQuery)
+                            // 再検索実行
+                            resetSearch(newQuery)
+                        }
                     }
 
                     // チップ本体を押したら入力画面へ（既存の処理）
