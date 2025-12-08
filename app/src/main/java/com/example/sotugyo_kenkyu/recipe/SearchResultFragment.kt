@@ -4,9 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import android.view.View
-import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
 import android.widget.Toast
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -32,6 +30,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import android.app.Activity
 import android.content.Intent
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 
 class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
 
@@ -67,12 +67,12 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
 
         // 前画面からのキーワード取得
         val initialKeyword = arguments?.getString("KEY_SEARCH_WORD") ?: ""
+        currentKeyword = initialKeyword
         // ★追加: 選択モードフラグ取得
         isSelectionMode = arguments?.getBoolean("IS_SELECTION_MODE") ?: false
 
         historyManager = SearchHistoryManager(requireContext())
 
-        val searchEditText = view.findViewById<EditText>(R.id.resultSearchEditText)
         val btnBack = view.findViewById<View>(R.id.btnBack)
         recyclerView = view.findViewById(R.id.recyclerResult)
 
@@ -89,8 +89,86 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
             insets
         }
 
-        // UI初期設定
-        searchEditText.setText(initialKeyword)
+        // ★2. 検索バー（またはチップエリア）が押されたら入力画面へ！
+        // これがしょうたんのやりたかった「編集モードへの遷移」よ
+        val openInputScreen = View.OnClickListener {
+            // 入力画面のインスタンスを作成
+            val inputFragment = SearchInputFragment()
+
+            // ★重要：今のキーワードを渡してあげる！
+            // そうしないと入力画面が空っぽで使いにくいからね
+            val args = Bundle()
+            args.putString("EDIT_KEYWORD", currentKeyword)
+            inputFragment.arguments = args
+
+            parentFragmentManager.beginTransaction()
+                // アニメーションはお好みで（フェードとか）
+                .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
+                .replace(R.id.fragment_container, inputFragment)
+                .addToBackStack(null)
+                .commit()
+        }
+
+        val chipGroup = view.findViewById<ChipGroup>(R.id.chipGroupResult)
+        val searchBarClickArea = view.findViewById<View>(R.id.searchBarClickArea)
+
+        // 1. キーワードを空白で区切ってチップを表示
+        if (initialKeyword.isNotBlank()) {
+            val words = initialKeyword.replace("　", " ").split(" ")
+
+            words.forEach { word ->
+                if (word.isNotBlank()) {
+                    val chip = Chip(context)
+                    chip.text = word
+
+                    // ★修正：スタイルとバツボタンの設定
+                    chip.isCheckable = false
+                    chip.isClickable = true // 編集画面への遷移用
+                    chip.isCloseIconVisible = true // ★バツボタンを表示！
+
+                    // ★見た目の調整（参考画像っぽく薄いグレーに）
+                    // 既存の色リソースがあればそれを使って。なければカラーコード指定でもOK
+                    chip.setChipBackgroundColorResource(android.R.color.white) // 背景白（検索バーと同化させるなら）
+                    // もしくは薄いグレーなら: chip.setChipBackgroundColor(ColorStateList.valueOf(Color.parseColor("#F0F0F0")))
+
+                    // 枠線を消す（フラットにする場合）
+                    chip.chipStrokeWidth = 0f
+
+                    // ★バツボタンが押された時の処理（再検索！）
+                    chip.setOnCloseIconClickListener {
+                        // 1. チップを画面から消す
+                        chipGroup.removeView(chip)
+
+                        // 2. 残っているチップの文字を集めて、新しい検索ワードを作る
+                        val remainingWords = mutableListOf<String>()
+                        for (i in 0 until chipGroup.childCount) {
+                            val child = chipGroup.getChildAt(i) as? Chip
+                            child?.let { remainingWords.add(it.text.toString()) }
+                        }
+                        val newQuery = remainingWords.joinToString(" ")
+
+                        // 3. 新しいワードで再検索（リセット扱い）
+                        resetSearch(newQuery)
+                    }
+
+                    // チップ本体を押したら入力画面へ（既存の処理）
+                    chip.setOnClickListener {
+                        // 入力画面へ遷移する処理...（openInputScreenの中身と同じ）
+                        // ここは既存の openInputScreen を呼べばOK
+                        openInputScreen.onClick(it)
+                    }
+
+                    chipGroup.addView(chip)
+                }
+            }
+        }
+
+
+
+        searchBarClickArea.setOnClickListener(openInputScreen)
+        // ChipGroup自体を押した時も反応するようにしておくと親切
+        chipGroup.setOnClickListener(openInputScreen)
+
 
         // アダプターの準備（最初は空っぽで作成）
         recyclerView.layoutManager = LinearLayoutManager(context)
@@ -111,20 +189,7 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
         // ★最初に検索するときはリセット
         resetSearch(initialKeyword)
 
-        // ★再検索のとき
-        searchEditText.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                val newKeyword = searchEditText.text.toString()
-                if (newKeyword.isNotBlank()) {
-                    historyManager.saveHistory(newKeyword) // 履歴保存
-                    resetSearch(newKeyword) // ★リセットして検索
-                }
-                hideKeyboard(view)
-                true
-            } else {
-                false
-            }
-        }
+
 
         // ★【重要】スクロール検知リスナーを追加
         recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
