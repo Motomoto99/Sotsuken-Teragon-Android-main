@@ -154,7 +154,7 @@
         </nav>
 
         <main class="main-content">
-            
+
             <div id="tab-notification" class="content-section active">
                 <h1>お知らせ配信</h1>
                 <div class="container">
@@ -162,6 +162,14 @@
                     <input type="text" id="notif-title" placeholder="タイトル（例：メンテナンスのお知らせ）" value="運営からのお知らせ">
                     <textarea id="notif-content" rows="5" placeholder="本文（例：明日12時からメンテナンスを行います。）"></textarea>
                     <button class="action-btn" onclick="sendNotification()">配信する</button>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; margin-top:30px;">
+                    <h2 style="margin:0; font-size:1.2rem; border:none;">送信履歴（最新20件）</h2>
+                    <button class="action-btn" style="background-color:#FF9800; width:auto;" onclick="loadNotificationHistory()">更新</button>
+                </div>
+                <div class="container" style="padding:0;">
+                    <div id="notification-history-list" style="padding:15px;">履歴を読み込んでください...</div>
                 </div>
             </div>
 
@@ -319,6 +327,59 @@
                 listDiv.innerHTML = "読み込みエラー: " + e.message;
             }
         };
+
+        // ★追加: お知らせ履歴の読み込み
+window.loadNotificationHistory = async () => {
+    const listDiv = document.getElementById('notification-history-list');
+    listDiv.innerHTML = "読み込み中...";
+    try {
+        // 日付の新しい順に20件取得
+        const q = query(collection(db, "notifications"), orderBy("date", "desc"), limit(20));
+        const querySnapshot = await getDocs(q);
+
+        listDiv.innerHTML = "";
+        if (querySnapshot.empty) {
+            listDiv.innerHTML = "送信履歴はありません。";
+            return;
+        }
+
+        querySnapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const div = document.createElement('div');
+            div.className = "item-row";
+
+            let dateStr = "日時不明";
+            if(data.date) { dateStr = new Date(data.date.seconds * 1000).toLocaleString(); }
+
+            div.innerHTML = `
+                <div class="content-flex">
+                    <div style="min-width:0;">
+                        <strong>${data.title}</strong><br>
+                        <span class="sub-text">${dateStr}</span><br>
+                        <p style="margin:5px 0 0 0; font-size:0.9rem; white-space: pre-wrap; color:#333;">${data.content}</p>
+                    </div>
+                </div>
+                <button class="delete-btn" onclick="deleteNotification('${docSnap.id}')">削除</button>
+            `;
+            listDiv.appendChild(div);
+        });
+    } catch (e) {
+        console.error(e);
+        listDiv.innerHTML = "読み込みエラー: " + e.message;
+    }
+};
+
+// ★追加: お知らせの削除
+window.deleteNotification = async (id) => {
+    if(!confirm("このお知らせを削除しますか？\n（ユーザーのアプリからも消えます）")) return;
+    try {
+        await deleteDoc(doc(db, "notifications", id));
+        alert("削除しました");
+        loadNotificationHistory(); // リストを再読み込み
+    } catch(e) {
+        alert("削除エラー: " + e.message);
+    }
+};
 
         window.loadPosts = async () => {
             const listDiv = document.getElementById('posts-list');
