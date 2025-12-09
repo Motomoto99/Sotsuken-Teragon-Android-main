@@ -115,6 +115,13 @@ class AccountSettingsActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
+        val menuContact = findViewById<View>(R.id.menuContact) // 前回のレイアウト修正で追加したID
+
+        menuContact.setOnClickListener {
+            val intent = Intent(this, ContactActivity::class.java)
+            startActivity(intent)
+        }
+
         buttonEditUsername.setOnClickListener {
             editTextUsername.isEnabled = true
             editTextUsername.requestFocus()
