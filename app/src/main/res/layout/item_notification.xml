@@ -9,13 +9,25 @@
     android:paddingVertical="12dp"
     android:background="?attr/selectableItemBackground">
 
+    <View
+        android:id="@+id/viewUnreadMark"
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:background="@drawable/badge_background"
+        android:visibility="visible"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/imgNotificationIcon"
+        app:layout_constraintBottom_toBottomOf="@+id/imgNotificationIcon"
+        android:layout_marginEnd="4dp" />
+
     <ImageView
         android:id="@+id/imgNotificationIcon"
         android:layout_width="40dp"
         android:layout_height="40dp"
         android:scaleType="centerCrop"
         android:src="@drawable/outline_account_circle_24"
-        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginStart="12dp"
+        app:layout_constraintStart_toEndOf="@+id/viewUnreadMark"
         app:layout_constraintTop_toTopOf="parent" />
 
     <ImageView

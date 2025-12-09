@@ -323,40 +323,39 @@ class HomeFragment : Fragment() {
     // ★修正: 個人宛てと全体宛ての両方をチェック
     private fun recalculateBadge() {
         val view = view ?: return
-        val badge: TextView = view.findViewById(R.id.textNotificationBadge) // TextViewからViewに変更した場合は適宜キャストを変更してください
+        // IDを textNotificationBadge に戻したため、それに合わせて取得
+        val badge: TextView = view.findViewById(R.id.textNotificationBadge)
+
         val threshold = lastSeenDate?.toDate()?.time ?: 0L
+        var unreadCount = 0
 
-        var hasUnread = false
-
-        // A. 個人通知のチェック
+        // A. 個人通知のカウント
         currentSnapshots?.let { snapshots ->
             for (document in snapshots) {
                 val notification = document.toObject(Notification::class.java)
                 val date = notification.date
                 if (date != null && date.toDate().time > threshold) {
-                    hasUnread = true
-                    break
+                    unreadCount++
                 }
             }
         }
 
-        // B. 全体通知のチェック（まだ見つかっていない場合のみ）
-        if (!hasUnread) {
-            globalSnapshots?.let { snapshots ->
-                for (document in snapshots) {
-                    val notification = document.toObject(Notification::class.java)
-                    val date = notification.date
-                    if (date != null && date.toDate().time > threshold) {
-                        hasUnread = true
-                        break
-                    }
+        // B. 全体通知のカウント
+        globalSnapshots?.let { snapshots ->
+            for (document in snapshots) {
+                val notification = document.toObject(Notification::class.java)
+                val date = notification.date
+                if (date != null && date.toDate().time > threshold) {
+                    unreadCount++
                 }
             }
         }
 
-        if (hasUnread) {
+        // 表示更新
+        if (unreadCount > 0) {
             badge.visibility = View.VISIBLE
-            badge.text = "" // 赤い丸だけにする
+            // 99件を超える場合は "99+" と表示
+            badge.text = if (unreadCount > 99) "99+" else unreadCount.toString()
         } else {
             badge.visibility = View.GONE
         }
