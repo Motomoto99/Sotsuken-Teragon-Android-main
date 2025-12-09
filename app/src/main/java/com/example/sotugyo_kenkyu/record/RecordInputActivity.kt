@@ -1,4 +1,3 @@
-// app/src/main/java/com/example/sotugyo_kenkyu/record/RecordInputActivity.kt
 package com.example.sotugyo_kenkyu.record
 
 import android.app.DatePickerDialog
@@ -20,7 +19,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.FileProvider
+import androidx.core.content.FileProvider // 追加
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -39,13 +38,11 @@ import com.google.firebase.ai.type.GenerativeBackend
 import com.google.firebase.ai.type.content
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import java.io.File
+import java.io.File // 追加
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -55,46 +52,57 @@ class RecordInputActivity : AppCompatActivity() {
 
     private lateinit var imagePhoto: ImageView
     private var selectedImageUri: Uri? = null
+
+    // ★追加: カメラ撮影用の一時URIを保持する変数
     private var photoUri: Uri? = null
+
     private val calendar = Calendar.getInstance()
 
+    // 編集モード用変数
     private var isEditMode = false
     private var editRecordId: String? = null
     private var originalImageUrl: String = ""
     private var currentRating: Float = 0f
     private var originalPostedAt: Timestamp? = null
+
+    // 選択されたレシピを保持する変数
     private var selectedRecipe: Recipe? = null
 
-    // 画像判定用AI
+    // 画像判定用 Firebase AI Logic モデル
     private val imageJudgeModel: GenerativeModel by lazy {
         Firebase.ai(backend = GenerativeBackend.googleAI())
             .generativeModel(modelName = "gemini-2.5-flash")
     }
 
-    // アドバイス生成用AI
-    private val textGenerativeModel by lazy {
-        Firebase.ai(backend = GenerativeBackend.googleAI())
-            .generativeModel(modelName = "gemini-2.5-flash")
-    }
-
+    // アルバムから選択するランチャー
     private val pickImageLauncher =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
             if (uri != null) {
                 selectedImageUri = uri
-                Glide.with(this).load(uri).centerCrop().into(imagePhoto)
+                Glide.with(this)
+                    .load(uri)
+                    .centerCrop()
+                    .into(imagePhoto)
+
                 findViewById<View>(R.id.layoutPhotoPlaceholder).visibility = View.GONE
             }
         }
 
+    // ★追加: カメラ撮影ランチャー
     private val takePictureLauncher =
         registerForActivityResult(ActivityResultContracts.TakePicture()) { isSuccess ->
             if (isSuccess && photoUri != null) {
+                // 撮影成功時の処理
                 selectedImageUri = photoUri
-                Glide.with(this).load(photoUri).centerCrop().into(imagePhoto)
+                Glide.with(this)
+                    .load(photoUri)
+                    .centerCrop()
+                    .into(imagePhoto)
                 findViewById<View>(R.id.layoutPhotoPlaceholder).visibility = View.GONE
             }
         }
 
+    // レシピ選択画面へのランチャー
     private val recipeSelectLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
@@ -111,21 +119,26 @@ class RecordInputActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_record_input)
 
+        // 編集モードかどうか判定
         checkEditMode()
 
         val header = findViewById<View>(R.id.header)
         val buttonCancel = findViewById<TextView>(R.id.buttonCancel)
         val buttonSave = findViewById<TextView>(R.id.buttonSave)
         val textTitle = findViewById<TextView>(R.id.textTitle)
+
         val textDate = findViewById<TextView>(R.id.textDate)
         val containerDate = findViewById<View>(R.id.containerDate)
+
         val cardPhoto = findViewById<View>(R.id.cardPhoto)
         imagePhoto = findViewById(R.id.imagePhoto)
+
         val inputMenuName = findViewById<EditText>(R.id.inputMenuName)
         val inputMemo = findViewById<EditText>(R.id.inputMemo)
         val switchPublic = findViewById<MaterialSwitch>(R.id.switchPublic)
         val containerRecipe = findViewById<View>(R.id.containerRecipe)
 
+        // WindowInsets設定
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val originalPaddingTop = (12 * resources.displayMetrics.density).toInt()
@@ -138,17 +151,28 @@ class RecordInputActivity : AppCompatActivity() {
             insets
         }
 
+        // 編集モードならUIを更新（データのプレフィル）
         if (isEditMode) {
             textTitle.text = "記録の編集"
             inputMenuName.setText(intent.getStringExtra("MENU_NAME"))
             inputMemo.setText(intent.getStringExtra("MEMO"))
-            switchPublic.isChecked = intent.getBooleanExtra("IS_PUBLIC", false)
+
+            // 既存の公開設定を反映
+            val isPublic = intent.getBooleanExtra("IS_PUBLIC", false)
+            switchPublic.isChecked = isPublic
+
             val timestamp = intent.getLongExtra("DATE_TIMESTAMP", 0)
-            if (timestamp > 0) calendar.time = Date(timestamp)
+            if (timestamp > 0) {
+                calendar.time = Date(timestamp)
+            }
+
+            // 画像の表示
             if (originalImageUrl.isNotEmpty()) {
                 Glide.with(this).load(originalImageUrl).centerCrop().into(imagePhoto)
                 findViewById<View>(R.id.layoutPhotoPlaceholder).visibility = View.GONE
             }
+
+            // 既存のレシピ情報の復元
             val rId = intent.getStringExtra("RECIPE_ID")
             if (!rId.isNullOrEmpty()) {
                 selectedRecipe = Recipe(
@@ -160,94 +184,177 @@ class RecordInputActivity : AppCompatActivity() {
             }
         }
 
+        // レシピ表示の更新（初期表示）
         updateRecipeUi()
+
+        // 初期状態のスイッチテキストを設定
         updateSwitchText(switchPublic, switchPublic.isChecked)
-        switchPublic.setOnCheckedChangeListener { buttonView, isChecked -> updateSwitchText(buttonView, isChecked) }
+
+        // スイッチ切り替え時のリスナー
+        switchPublic.setOnCheckedChangeListener { buttonView, isChecked ->
+            updateSwitchText(buttonView, isChecked)
+        }
+
+        // 日付表示更新
         updateDateText(textDate)
 
-        buttonCancel.setOnClickListener { showDiscardConfirmationDialog() }
-        cardPhoto.setOnClickListener { showImageSourceDialog() }
-        containerDate.setOnClickListener {
-            DatePickerDialog(this, { _, year, month, day ->
-                calendar.set(year, month, day)
-                updateDateText(textDate)
-            }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
+        // キャンセルボタン
+        buttonCancel.setOnClickListener {
+            showDiscardConfirmationDialog()
         }
+
+        // 写真追加ボタン (★修正: ダイアログを表示)
+        cardPhoto.setOnClickListener {
+            showImageSourceDialog()
+        }
+
+        // 日付選択
+        containerDate.setOnClickListener {
+            DatePickerDialog(
+                this,
+                { _, year, month, day ->
+                    calendar.set(year, month, day)
+                    updateDateText(textDate)
+                },
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH)
+            ).show()
+        }
+
+        // レシピ紐づけ
         containerRecipe.setOnClickListener {
             val intent = Intent(this, RecipeSelectActivity::class.java)
             recipeSelectLauncher.launch(intent)
         }
 
+        // 保存ボタン
         buttonSave.setOnClickListener {
             val menuName = inputMenuName.text.toString().trim()
+
             if (menuName.isEmpty()) {
                 Toast.makeText(this, "料理名を入力してください", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+
+            // 新規作成時のみ画像必須
             if (!isEditMode && selectedImageUri == null) {
                 Toast.makeText(this, "写真を追加してください", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            val user = FirebaseAuth.getInstance().currentUser ?: return@setOnClickListener
+            val user = FirebaseAuth.getInstance().currentUser
+            if (user == null) {
+                finish()
+                return@setOnClickListener
+            }
 
+            // AI 判定 → 保存処理
             lifecycleScope.launch {
                 buttonSave.isEnabled = false
-                Toast.makeText(this@RecordInputActivity, "保存中...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this@RecordInputActivity,
+                    "保存中...",
+                    Toast.LENGTH_SHORT
+                ).show()
 
+                // 新しい画像が選択されている場合のみ判定する
                 if (selectedImageUri != null) {
                     val bitmap = loadBitmapFromUri(selectedImageUri!!)
                     if (bitmap == null) {
-                        Toast.makeText(this@RecordInputActivity, "画像の読み込みに失敗しました", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            this@RecordInputActivity,
+                            "画像の読み込みに失敗しました",
+                            Toast.LENGTH_SHORT
+                        ).show()
                         buttonSave.isEnabled = true
                         return@launch
                     }
-                    val isFood = try { judgeImageIsFood(bitmap) } catch (e: Exception) {
+
+                    val isFood = try {
+                        judgeImageIsFood(bitmap)
+                    } catch (e: Exception) {
                         e.printStackTrace()
-                        Toast.makeText(this@RecordInputActivity, "画像の判定に失敗しました", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            this@RecordInputActivity,
+                            "画像の判定に失敗しました。ネットワーク状態を確認してください。",
+                            Toast.LENGTH_SHORT
+                        ).show()
                         buttonSave.isEnabled = true
                         return@launch
                     }
+
                     if (!isFood) {
                         AlertDialog.Builder(this@RecordInputActivity)
                             .setTitle("画像を確認してください")
-                            .setMessage("料理の写真ではない可能性があります。")
+                            .setMessage("料理や食べ物の写真ではない可能性があります。\n料理の写真に変更してから保存してください。")
                             .setPositiveButton("OK", null)
                             .show()
+
                         buttonSave.isEnabled = true
                         return@launch
                     }
                 }
 
+                // 保存処理へ
                 val memo = inputMemo.text.toString()
                 val isPublic = switchPublic.isChecked
 
                 if (selectedImageUri != null) {
                     uploadImageAndSave(user.uid, menuName, memo, isPublic)
-                } else if (isEditMode) {
-                    saveRecordToFirestore(user.uid, menuName, memo, isPublic, originalImageUrl)
+                } else {
+                    if (isEditMode) {
+                        saveRecordToFirestore(
+                            user.uid,
+                            menuName,
+                            memo,
+                            isPublic,
+                            originalImageUrl
+                        )
+                    } else {
+                        buttonSave.isEnabled = true
+                    }
                 }
             }
         }
     }
 
+    // ★追加: 画像の選択方法を選ぶダイアログを表示
     private fun showImageSourceDialog() {
         val options = arrayOf("カメラで撮影", "アルバムから選択")
-        AlertDialog.Builder(this).setTitle("写真を追加").setItems(options) { _, which ->
-            when (which) {
-                0 -> startCamera()
-                1 -> pickImageLauncher.launch("image/*")
+        AlertDialog.Builder(this)
+            .setTitle("写真を追加")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> startCamera() // カメラ起動
+                    1 -> pickImageLauncher.launch("image/*") // アルバム起動
+                }
             }
-        }.show()
+            .show()
     }
 
+    // ★追加: カメラを起動する処理
     private fun startCamera() {
+        // 1. 一時保存用のファイルを作成
         val photoFile = File(externalCacheDir, "temp_image_${System.currentTimeMillis()}.jpg")
-        val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", photoFile)
+
+        // 2. FileProviderを使ってURIを取得
+        // 一旦ローカル変数(val)に入れることで、スマートキャスト（自動変換）を効かせやすくします
+        val uri = FileProvider.getUriForFile(
+            this,
+            "${packageName}.fileprovider",
+            photoFile
+        )
+
+        // クラス変数のphotoUriにも保存しておく（撮影後の処理で使うため）
         photoUri = uri
+
+        // 3. カメラ起動
+        // ここで作成したばかりの 'uri' (非Null) を渡せばエラーになりません
         takePictureLauncher.launch(uri)
     }
 
+    // レシピ選択状態をUIに反映
     private fun updateRecipeUi() {
         val textRecipeName = findViewById<TextView>(R.id.textRecipeName)
         if (selectedRecipe != null) {
@@ -259,15 +366,31 @@ class RecordInputActivity : AppCompatActivity() {
         }
     }
 
+    // 画像 URI → Bitmap 変換
     private suspend fun loadBitmapFromUri(uri: Uri): Bitmap? = withContext(Dispatchers.IO) {
-        try { contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } } catch (e: Exception) { null }
+        try {
+            contentResolver.openInputStream(uri)?.use { input ->
+                BitmapFactory.decodeStream(input)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 
+    // Firebase AI Logic で「料理画像かどうか」を判定
     private suspend fun judgeImageIsFood(bitmap: Bitmap): Boolean {
         val prompt = PromptRepository.getImageJudgePrompt()
-        val input = content { image(bitmap); text(prompt) }
+
+        val input = content {
+            image(bitmap)
+            text(prompt)
+        }
+
         val response = imageJudgeModel.generateContent(input)
-        return (response.text?.trim()?.lowercase(Locale.getDefault()) ?: "no") == "yes"
+        val result = response.text?.trim()?.lowercase(Locale.getDefault()) ?: "no"
+
+        return result == "yes"
     }
 
     private fun checkEditMode() {
@@ -277,8 +400,11 @@ class RecordInputActivity : AppCompatActivity() {
             editRecordId = id
             originalImageUrl = intent.getStringExtra("IMAGE_URL") ?: ""
             currentRating = intent.getFloatExtra("RATING", 0f)
+
             val postedTime = intent.getLongExtra("POSTED_TIMESTAMP", 0)
-            if (postedTime > 0) originalPostedAt = Timestamp(Date(postedTime))
+            if (postedTime > 0) {
+                originalPostedAt = Timestamp(Date(postedTime))
+            }
         }
     }
 
@@ -287,111 +413,153 @@ class RecordInputActivity : AppCompatActivity() {
     }
 
     private fun showDiscardConfirmationDialog() {
-        AlertDialog.Builder(this).setTitle("確認").setMessage("破棄しますか？").setPositiveButton("破棄") { _, _ -> finish() }.setNegativeButton("キャンセル", null).show()
+        AlertDialog.Builder(this)
+            .setTitle("確認")
+            .setMessage("入力内容は破棄されます。\nよろしいですか？")
+            .setPositiveButton("破棄する") { _, _ ->
+                finish()
+            }
+            .setNegativeButton("キャンセル", null)
+            .show()
     }
 
     private fun updateDateText(view: TextView) {
-        view.text = String.format(Locale.getDefault(), "%d/%02d/%02d", calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH) + 1, calendar.get(Calendar.DAY_OF_MONTH))
+        val year = calendar.get(Calendar.YEAR)
+        val month = calendar.get(Calendar.MONTH) + 1
+        val day = calendar.get(Calendar.DAY_OF_MONTH)
+        view.text = String.format(Locale.getDefault(), "%d/%02d/%02d", year, month, day)
     }
 
-    private fun uploadImageAndSave(uid: String, menuName: String, memo: String, isPublic: Boolean) {
-        val storageRef = FirebaseStorage.getInstance().reference.child("records/$uid/${UUID.randomUUID()}.jpg")
-        storageRef.putFile(selectedImageUri!!).addOnSuccessListener {
-            storageRef.downloadUrl.addOnSuccessListener { uri -> saveRecordToFirestore(uid, menuName, memo, isPublic, uri.toString()) }
-        }.addOnFailureListener {
-            Toast.makeText(this, "アップロード失敗", Toast.LENGTH_SHORT).show()
-            findViewById<View>(R.id.buttonSave).isEnabled = true
-        }
+    private fun uploadImageAndSave(
+        uid: String,
+        menuName: String,
+        memo: String,
+        isPublic: Boolean
+    ) {
+        val storageRef = FirebaseStorage.getInstance().reference
+        val filename = UUID.randomUUID().toString()
+        val imageRef = storageRef.child("records/$uid/$filename.jpg")
+
+        imageRef.putFile(selectedImageUri!!)
+            .addOnSuccessListener {
+                imageRef.downloadUrl.addOnSuccessListener { uri ->
+                    saveRecordToFirestore(uid, menuName, memo, isPublic, uri.toString())
+                }
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "画像のアップロードに失敗しました", Toast.LENGTH_SHORT).show()
+                findViewById<View>(R.id.buttonSave).isEnabled = true
+            }
     }
 
-    private fun saveRecordToFirestore(uid: String, menuName: String, memo: String, isPublic: Boolean, imageUrl: String) {
+    private fun saveRecordToFirestore(
+        uid: String,
+        menuName: String,
+        memo: String,
+        isPublic: Boolean,
+        imageUrl: String
+    ) {
         val db = FirebaseFirestore.getInstance()
         val userRecordsRef = db.collection("users").document(uid).collection("my_records")
+
+        val originalIsPublic = intent.getBooleanExtra("IS_PUBLIC", false)
         val recordDate = Timestamp(calendar.time)
-        val postedAtDate = if (isPublic) Timestamp.now() else null
 
-        val data = hashMapOf<String, Any>(
-            "userId" to uid, "menuName" to menuName, "date" to recordDate, "memo" to memo,
-            "imageUrl" to imageUrl, "isPublic" to isPublic, "rating" to currentRating,
-            "recipeId" to (selectedRecipe?.id ?: ""), "recipeTitle" to (selectedRecipe?.recipeTitle ?: ""),
-            "recipeUrl" to (selectedRecipe?.recipeUrl ?: ""), "recipeImageUrl" to (selectedRecipe?.foodImageUrl ?: "")
-        )
-        if (postedAtDate != null) data["postedAt"] = postedAtDate
-
-        val task = if (isEditMode && editRecordId != null) {
-            userRecordsRef.document(editRecordId!!).update(data)
+        val postedAtDate = if (isPublic) {
+            if (!isEditMode) {
+                Timestamp.now()
+            } else if (!originalIsPublic) {
+                Timestamp.now()
+            } else {
+                originalPostedAt ?: recordDate
+            }
         } else {
-            userRecordsRef.add(data).addOnSuccessListener { it.update("id", it.id) }
+            null
         }
 
-        task.addOnSuccessListener {
-            // ★保存完了後、AIアドバイスを生成・保存してから終了
-            generateAndSaveAiAdvice(uid) {
-                if (!isEditMode) showSuccessDialog(uid, (task.result as? com.google.firebase.firestore.DocumentReference)?.id ?: "")
-                else { Toast.makeText(this, "更新しました", Toast.LENGTH_SHORT).show(); finish() }
+        if (isEditMode && editRecordId != null) {
+            val updateData = hashMapOf<String, Any>(
+                "menuName" to menuName,
+                "date" to recordDate,
+                "memo" to memo,
+                "imageUrl" to imageUrl,
+                "isPublic" to isPublic,
+                "rating" to currentRating,
+                "recipeId" to (selectedRecipe?.id ?: ""),
+                "recipeTitle" to (selectedRecipe?.recipeTitle ?: ""),
+                "recipeUrl" to (selectedRecipe?.recipeUrl ?: ""),
+                "recipeImageUrl" to (selectedRecipe?.foodImageUrl ?: "")
+            )
+
+            if (postedAtDate != null) {
+                updateData["postedAt"] = postedAtDate
             }
-        }.addOnFailureListener {
-            Toast.makeText(this, "保存失敗: ${it.message}", Toast.LENGTH_SHORT).show()
-            findViewById<View>(R.id.buttonSave).isEnabled = true
+
+            userRecordsRef.document(editRecordId!!)
+                .update(updateData)
+                .addOnSuccessListener {
+                    Toast.makeText(this, "更新しました", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+                .addOnFailureListener { e ->
+                    handleSaveError(e)
+                }
+
+        } else {
+            val newRecord = Record(
+                userId = uid,
+                menuName = menuName,
+                date = recordDate,
+                postedAt = postedAtDate,
+                memo = memo,
+                imageUrl = imageUrl,
+                isPublic = isPublic,
+                rating = 0f,
+                recipeId = selectedRecipe?.id ?: "",
+                recipeTitle = selectedRecipe?.recipeTitle ?: "",
+                recipeUrl = selectedRecipe?.recipeUrl ?: "",
+                recipeImageUrl = selectedRecipe?.foodImageUrl ?: ""
+            )
+
+            userRecordsRef.add(newRecord)
+                .addOnSuccessListener { documentReference ->
+                    documentReference.update("id", documentReference.id)
+                    showSuccessDialog(uid, documentReference.id)
+                }
+                .addOnFailureListener { e ->
+                    handleSaveError(e)
+                }
         }
     }
 
-    // ★追加: AIアドバイスを生成して保存する処理（最新2件使用）
-    private fun generateAndSaveAiAdvice(uid: String, onComplete: () -> Unit) {
-        lifecycleScope.launch {
-            try {
-                Toast.makeText(this@RecordInputActivity, "AIがアドバイスを作成中...", Toast.LENGTH_SHORT).show()
-                val db = FirebaseFirestore.getInstance()
-
-                // 直近2件（今保存したのも含む）を取得
-                val recordsSnapshot = db.collection("users").document(uid).collection("my_records")
-                    .orderBy("date", Query.Direction.DESCENDING).limit(2).get().await()
-                val recentMenus = recordsSnapshot.documents.mapNotNull { it.getString("menuName") }
-
-                val userSnapshot = db.collection("users").document(uid).get().await()
-                val allergies = userSnapshot.get("allergies") as? List<String> ?: emptyList()
-                val allergyText = if (allergies.isNotEmpty()) "（ユーザーのアレルギー: ${allergies.joinToString(", ")}）" else ""
-
-                val prompt = """
-                   あなたは親しみやすい栄養管理のパートナーキャラクターです。
-                    ユーザーの直近の食事記録を見て、40文字以内で短く、次の料理のおすすめを提案してください。
-                   栄養バランスへのアドバイスや、褒め言葉を含めてください。
-                    
-                    【直近の食事】
-                    ${recentMenus.joinToString("\n")}
-                    
-                    $allergyText
-                    
-                    口調の例：
-                    「野菜も摂れていて偉いですね！この調子！」
-                    「お肉が続いてますね、次はお魚はいかが？」
-                    「美味しそう！でもちょっとカロリー高めかも？」
-                """.trimIndent()
-
-                val response = textGenerativeModel.generateContent(prompt)
-                val comment = response.text?.trim() ?: "今日も良い食事を！"
-
-                db.collection("users").document(uid).update("latestAiAdvice", comment).await()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                onComplete()
-            }
-        }
+    private fun handleSaveError(e: Exception) {
+        Toast.makeText(this, "保存失敗: ${e.message}", Toast.LENGTH_SHORT).show()
+        findViewById<View>(R.id.buttonSave).isEnabled = true
     }
 
     private fun showSuccessDialog(uid: String, recordId: String) {
-        if (isFinishing || isDestroyed) return
         val dialogView = layoutInflater.inflate(R.layout.dialog_record_success, null)
         val ratingBar = dialogView.findViewById<RatingBar>(R.id.ratingBar)
-        val dialog = AlertDialog.Builder(this).setView(dialogView).setCancelable(false).create()
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
         dialogView.findViewById<View>(R.id.buttonCloseDialog).setOnClickListener {
-            if (ratingBar.rating > 0) FirebaseFirestore.getInstance().collection("users").document(uid)
-                .collection("my_records").document(recordId).update("rating", ratingBar.rating)
+            val rating = ratingBar.rating
+            if (rating > 0) {
+                FirebaseFirestore.getInstance()
+                    .collection("users").document(uid)
+                    .collection("my_records").document(recordId)
+                    .update("rating", rating)
+            }
             dialog.dismiss()
             finish()
         }
+
         dialog.show()
     }
 }

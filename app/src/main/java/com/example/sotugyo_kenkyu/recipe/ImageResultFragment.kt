@@ -13,7 +13,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import com.example.sotugyo_kenkyu.R
 import com.example.sotugyo_kenkyu.ai.PromptRepository
 import com.example.sotugyo_kenkyu.recipe.SearchResultFragment
 import com.google.firebase.Firebase

@@ -12,10 +12,12 @@ import java.util.Date
 
 class NotificationAdapter(
     private val notificationList: List<Notification>,
-    private val iconMap: Map<String, String>
+    private val iconMap: Map<String, String>,
+    private val lastSeenDate: Date? // ★追加: 最後に見た日時
 ) : RecyclerView.Adapter<NotificationAdapter.NotificationViewHolder>() {
 
     class NotificationViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val unreadMark: View = itemView.findViewById(R.id.viewUnreadMark) // ★追加
         val icon: ImageView = itemView.findViewById(R.id.imgNotificationIcon)
         val title: TextView = itemView.findViewById(R.id.textNotificationTitle)
         val content: TextView = itemView.findViewById(R.id.textNotificationContent)
@@ -36,46 +38,39 @@ class NotificationAdapter(
         holder.title.text = notification.title
         holder.content.text = notification.content
 
-        // 2. アイコン設定 (運営 vs ユーザー)
+        // 2. ★未読マークの制御
+        val notifDate = notification.date?.toDate()
+        val threshold = lastSeenDate?.time ?: 0L
+
+        // 通知の日付が「最後に見た日時」より新しければマークを表示
+        if (notifDate != null && notifDate.time > threshold) {
+            holder.unreadMark.visibility = View.VISIBLE
+            // 未読を目立たせるために背景色を変える等の処理もここで可能
+        } else {
+            holder.unreadMark.visibility = View.INVISIBLE // GONEだとレイアウトがずれるのでINVISIBLE推奨
+        }
+
+        // 3. アイコン設定 (運営 vs ユーザー)
         val isLikeNotification = notification.title.contains("いいね")
 
         if (isLikeNotification) {
-            // --- いいね通知の場合: ユーザーアイコンを表示 ---
             val senderUid = notification.senderUid
             val iconUrl = if (senderUid != null) iconMap[senderUid] else null
-
             if (!iconUrl.isNullOrEmpty()) {
-                Glide.with(holder.itemView.context)
-                    .load(iconUrl)
-                    .circleCrop()
-                    .into(holder.icon)
+                Glide.with(holder.itemView.context).load(iconUrl).circleCrop().into(holder.icon)
             } else {
-                // アイコン未設定のユーザーは人型アイコン
-                Glide.with(holder.itemView.context)
-                    .load(R.drawable.outline_account_circle_24)
-                    .circleCrop()
-                    .into(holder.icon)
+                Glide.with(holder.itemView.context).load(R.drawable.outline_account_circle_24).circleCrop().into(holder.icon)
             }
-
-            // 右下のバッジ（ハート）を表示
             holder.badge.visibility = View.VISIBLE
             holder.badge.setImageResource(R.drawable.ic_heart_filled)
-
         } else {
-            // --- 運営からのお知らせの場合: new_splash_icon を表示 ---
-            Glide.with(holder.itemView.context)
-                .load(R.drawable.new_splash_icon) // ★ここを変更しました
-                .circleCrop()
-                .into(holder.icon)
-
-            // バッジは非表示（または公式マークなどを出す）
+            Glide.with(holder.itemView.context).load(R.drawable.new_splash_icon).circleCrop().into(holder.icon)
             holder.badge.visibility = View.GONE
         }
 
-        // 3. 日付変換
-        val date = notification.date?.toDate()
-        if (date != null) {
-            holder.date.text = getTwitterStyleDate(date)
+        // 4. 日付変換
+        if (notifDate != null) {
+            holder.date.text = getTwitterStyleDate(notifDate)
         } else {
             holder.date.text = ""
         }
@@ -86,12 +81,10 @@ class NotificationAdapter(
     private fun getTwitterStyleDate(date: Date): String {
         val now = Date().time
         val diff = now - date.time
-
         val seconds = diff / 1000
         val minutes = seconds / 60
         val hours = minutes / 60
         val days = hours / 24
-
         return when {
             seconds < 60 -> "今"
             minutes < 60 -> "${minutes}分"
