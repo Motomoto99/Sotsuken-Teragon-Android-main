@@ -108,6 +108,13 @@ class AccountSettingsActivity : AppCompatActivity() {
             pickImageLauncher.launch("image/*")
         }
 
+        val menuPrivacyPolicy = findViewById<View>(R.id.menuPrivacyPolicy) // 前回のxml修正で追加したID
+
+        menuPrivacyPolicy.setOnClickListener {
+            val intent = Intent(this, PrivacyPolicyActivity::class.java)
+            startActivity(intent)
+        }
+
         buttonEditUsername.setOnClickListener {
             editTextUsername.isEnabled = true
             editTextUsername.requestFocus()

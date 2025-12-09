@@ -43,6 +43,10 @@
             android:name=".account.AccountSettingsActivity"
             android:exported="false" />
         <activity
+            android:name=".account.PrivacyPolicyActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
             android:name=".common.DataLoadingActivity"
             android:exported="false" />
         <activity
