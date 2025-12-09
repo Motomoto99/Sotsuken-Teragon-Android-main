@@ -1,4 +1,4 @@
-package com.example.sotugyo_kenkyu
+package com.example.sotugyo_kenkyu.recipe
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -11,10 +11,13 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import com.example.sotugyo_kenkyu.R
 import com.example.sotugyo_kenkyu.ai.PromptRepository
-import com.example.sotugyo_kenkyu.recipe.SearchResultFragment
 import com.google.firebase.Firebase
 import com.google.firebase.ai.GenerativeModel
 import com.google.firebase.ai.ai
@@ -47,6 +50,23 @@ class ImageResultFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // ★修正: 画面全体のViewに対してリスナーを設定し、確実にInsetsを取得する
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val header = v.findViewById<View>(R.id.header)
+
+            // XMLで設定した元のpadding (16dp)
+            val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
+
+            // ステータスバーの高さ + 16dp を設定
+            // systemBars.top が 0 の場合でも最低限 16dp は確保される
+            header.updatePadding(top = systemBars.top + originalPaddingTop)
+
+            insets
+        }
+        // 強制的にInsets適用をリクエスト（念のためViewに対して行う）
+        ViewCompat.requestApplyInsets(view)
+
         selectedUriString = arguments?.getString("IMAGE_URI")
 
         val imageView = view.findViewById<ImageView>(R.id.selectedImageView)
@@ -78,7 +98,7 @@ class ImageResultFragment : Fragment() {
     private fun analyzeImageWithAiLogic(uri: Uri) {
         lifecycleScope.launch {
             try {
-                // ① プロンプトを PromptRepository から取得（料理名抽出用）
+                // ① プロンプトを PromptRepository から取得
                 val promptText = PromptRepository.getDishNamePrompt()
 
                 // ② URI → Bitmap（IOスレッド）

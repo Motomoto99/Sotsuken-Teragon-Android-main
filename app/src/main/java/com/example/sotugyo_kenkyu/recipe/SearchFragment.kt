@@ -15,7 +15,6 @@ import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.sotugyo_kenkyu.ImageResultFragment
 import com.example.sotugyo_kenkyu.R
 
 class SearchFragment : Fragment() {
