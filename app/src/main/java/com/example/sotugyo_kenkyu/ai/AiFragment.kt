@@ -51,6 +51,9 @@ class AiFragment : Fragment(), RecognitionListener {
     private var model: Model? = null
     private var speechService: SpeechService? = null
 
+    // 話している途中のテキストを一時保存する変数（★追加）
+    private var currentPartialText: String = ""
+
     // 音声認識の状態
     private enum class VoiceState {
         WAITING_WAKE_WORD,
@@ -148,45 +151,46 @@ class AiFragment : Fragment(), RecognitionListener {
             }
         }
 
+        // ★★★ マイクボタンの処理を修正 ★★★
         buttonMic.setOnClickListener {
-            if (model != null) {
-                startCommandListening()
-            } else {
+            if (model == null) {
                 Toast.makeText(requireContext(), "音声モデル準備中...", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            if (voiceState == VoiceState.LISTENING_COMMAND) {
+                // すでに聞き取り中の場合 → 手動で停止して送信
+                manualStopAndSend()
+            } else {
+                // 待機中の場合 → 聞き取り開始
+                startCommandListening()
             }
         }
 
         checkPermissionAndInitModel()
     }
 
-    // --- 音声認識の制御ロジック (ここが重要) ---
+    // --- 音声認識の制御ロジック ---
 
-    // ★★★ 修正点1: タブ切り替えで画面が隠れた/現れたときの処理 ★★★
     override fun onHiddenChanged(hidden: Boolean) {
         super.onHiddenChanged(hidden)
         if (hidden) {
-            // 他のタブ（ホームや検索など）に行ったので、音声認識を完全停止
             stopRecognition()
         } else {
-            // AIタブに戻ってきたので、音声認識を再開（モデルがあれば）
             if (model != null) {
                 startWakeWordListening()
             }
-            checkPendingContextAndSend() // 戻ってきたときについでに保留メッセージ確認
+            checkPendingContextAndSend()
         }
     }
 
-    // ★★★ 修正点2: アプリ自体を閉じた/開いたときの処理 ★★★
     override fun onPause() {
         super.onPause()
-        // アプリがバックグラウンドに行った時も完全停止
         stopRecognition()
     }
 
     override fun onResume() {
         super.onResume()
-        // アプリに戻ってきた時（かつこの画面が表示中なら）再開
-        // isHidden == false のチェックを入れることで、裏にいるときは再開しないようにする
         if (!isHidden && model != null) {
             startWakeWordListening()
         }
@@ -199,13 +203,10 @@ class AiFragment : Fragment(), RecognitionListener {
         speechService = null
     }
 
-    // ★追加: 音声認識を停止するヘルパーメソッド
     private fun stopRecognition() {
         speechService?.stop()
         speechService = null
     }
-
-    // --- 以下、既存のロジック ---
 
     private fun checkPermissionAndInitModel() {
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO)
@@ -220,8 +221,6 @@ class AiFragment : Fragment(), RecognitionListener {
         StorageService.unpack(requireContext(), "vosk-model-small-ja-0.22", "model",
             { model: Model ->
                 this.model = model
-                // ★修正: 画面が表示されているときだけ開始する
-                // (非同期ロード完了時に、すでに他のタブへ移動している場合があるため)
                 if (isVisible) {
                     startWakeWordListening()
                 }
@@ -234,6 +233,7 @@ class AiFragment : Fragment(), RecognitionListener {
     private fun startWakeWordListening() {
         if (model == null) return
         voiceState = VoiceState.WAITING_WAKE_WORD
+        currentPartialText = "" // リセット
         updateMicIconColor()
         restartRecognizer()
     }
@@ -241,9 +241,33 @@ class AiFragment : Fragment(), RecognitionListener {
     private fun startCommandListening() {
         if (model == null) return
         voiceState = VoiceState.LISTENING_COMMAND
+        currentPartialText = "" // リセット
         updateMicIconColor()
         editTextMessage.hint = "お話しください..."
         Toast.makeText(requireContext(), "聞いています...", Toast.LENGTH_SHORT).show()
+        restartRecognizer()
+    }
+
+    // ★★★ 手動で停止して送信する関数 ★★★
+    private fun manualStopAndSend() {
+        // 音声認識を止める
+        speechService?.stop()
+
+        // 状態を待機モードに戻す（これで onFinalResult が二重送信するのを防ぐ）
+        voiceState = VoiceState.WAITING_WAKE_WORD
+
+        if (currentPartialText.isNotBlank()) {
+            sendMessage(manualText = currentPartialText)
+        } else {
+            Toast.makeText(requireContext(), "音声が聞き取れませんでした", Toast.LENGTH_SHORT).show()
+        }
+
+        // リセット処理
+        currentPartialText = ""
+        editTextMessage.hint = "メッセージを入力..."
+        updateMicIconColor()
+
+        // ウェイクワード待機を再開
         restartRecognizer()
     }
 
@@ -261,11 +285,15 @@ class AiFragment : Fragment(), RecognitionListener {
     private fun updateMicIconColor() {
         if (!::buttonMic.isInitialized) return
         if (voiceState == VoiceState.LISTENING_COMMAND) {
+            // 聞き取り中は赤色
             buttonMic.imageTintList = ColorStateList.valueOf(Color.RED)
         } else {
+            // 待機中はグレー
             buttonMic.imageTintList = ColorStateList.valueOf(Color.parseColor("#757575"))
         }
     }
+
+    // --- Vosk Callbacks ---
 
     override fun onPartialResult(hypothesis: String) {
         val text = parseVoskResult(hypothesis)
@@ -275,29 +303,49 @@ class AiFragment : Fragment(), RecognitionListener {
             if (isWakeWordDetected(text)) {
                 startCommandListening()
             }
+        } else {
+            // ★重要: 聞き取り中は、話している内容を常に変数に保存しておく
+            currentPartialText = text
+            // オプション: EditTextにリアルタイム表示したければここで setText する
         }
     }
 
     override fun onResult(hypothesis: String) {
         val text = parseVoskResult(hypothesis)
-        if (text.isEmpty()) return
 
         if (voiceState == VoiceState.WAITING_WAKE_WORD) {
-            if (isWakeWordDetected(text)) {
+            if (text.isNotEmpty() && isWakeWordDetected(text)) {
                 startCommandListening()
             }
         } else {
-            sendMessage(manualText = text)
-            editTextMessage.hint = "メッセージを入力..."
-            startWakeWordListening()
+            // コマンドモードで結果が確定した場合
+            if (text.isNotEmpty()) {
+                sendMessage(manualText = text)
+
+                // 送信後は待機モードに戻る
+                voiceState = VoiceState.WAITING_WAKE_WORD
+                currentPartialText = ""
+                editTextMessage.hint = "メッセージを入力..."
+                updateMicIconColor()
+                // restartRecognizer() は onResultの仕組み上、自動で継続されるので不要な場合もあるが
+                // 状態リセットのために明示的に呼んでも良い。ここではVoskの仕様に任せる。
+            }
         }
     }
 
     override fun onFinalResult(hypothesis: String) {
+        // 手動停止した場合などはここに来る
         val text = parseVoskResult(hypothesis)
+
+        // もし「聞き取り中」のままここに来た（＝自動停止やタイムアウト）場合のみ送信
+        // manualStopAndSend() を呼んだ場合はすでに WAITING になっているのでここは無視される
         if (voiceState == VoiceState.LISTENING_COMMAND && text.isNotEmpty()) {
             sendMessage(manualText = text)
+
+            voiceState = VoiceState.WAITING_WAKE_WORD
+            currentPartialText = ""
             editTextMessage.hint = "メッセージを入力..."
+            updateMicIconColor()
             startWakeWordListening()
         }
     }
