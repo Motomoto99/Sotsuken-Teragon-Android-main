@@ -1,3 +1,4 @@
+// app/src/main/java/com/example/sotugyo_kenkyu/record/RecordInputActivity.kt
 package com.example.sotugyo_kenkyu.record
 
 import android.app.DatePickerDialog
@@ -19,7 +20,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.FileProvider // 追加
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -38,11 +39,13 @@ import com.google.firebase.ai.type.GenerativeBackend
 import com.google.firebase.ai.type.content
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import java.io.File // 追加
+import java.io.File
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -53,7 +56,7 @@ class RecordInputActivity : AppCompatActivity() {
     private lateinit var imagePhoto: ImageView
     private var selectedImageUri: Uri? = null
 
-    // ★追加: カメラ撮影用の一時URIを保持する変数
+    // カメラ撮影用の一時URIを保持する変数
     private var photoUri: Uri? = null
 
     private val calendar = Calendar.getInstance()
@@ -74,6 +77,12 @@ class RecordInputActivity : AppCompatActivity() {
             .generativeModel(modelName = "gemini-2.5-flash")
     }
 
+    // ★追加: テキスト生成用（アドバイス用）のAIモデル
+    private val textGenerativeModel by lazy {
+        Firebase.ai(backend = GenerativeBackend.googleAI())
+            .generativeModel(modelName = "gemini-2.5-flash")
+    }
+
     // アルバムから選択するランチャー
     private val pickImageLauncher =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -88,7 +97,7 @@ class RecordInputActivity : AppCompatActivity() {
             }
         }
 
-    // ★追加: カメラ撮影ランチャー
+    // カメラ撮影ランチャー
     private val takePictureLauncher =
         registerForActivityResult(ActivityResultContracts.TakePicture()) { isSuccess ->
             if (isSuccess && photoUri != null) {
@@ -203,7 +212,7 @@ class RecordInputActivity : AppCompatActivity() {
             showDiscardConfirmationDialog()
         }
 
-        // 写真追加ボタン (★修正: ダイアログを表示)
+        // 写真追加ボタン
         cardPhoto.setOnClickListener {
             showImageSourceDialog()
         }
@@ -319,7 +328,7 @@ class RecordInputActivity : AppCompatActivity() {
         }
     }
 
-    // ★追加: 画像の選択方法を選ぶダイアログを表示
+    // 画像の選択方法を選ぶダイアログを表示
     private fun showImageSourceDialog() {
         val options = arrayOf("カメラで撮影", "アルバムから選択")
         AlertDialog.Builder(this)
@@ -333,13 +342,12 @@ class RecordInputActivity : AppCompatActivity() {
             .show()
     }
 
-    // ★追加: カメラを起動する処理
+    // カメラを起動する処理
     private fun startCamera() {
         // 1. 一時保存用のファイルを作成
         val photoFile = File(externalCacheDir, "temp_image_${System.currentTimeMillis()}.jpg")
 
         // 2. FileProviderを使ってURIを取得
-        // 一旦ローカル変数(val)に入れることで、スマートキャスト（自動変換）を効かせやすくします
         val uri = FileProvider.getUriForFile(
             this,
             "${packageName}.fileprovider",
@@ -350,7 +358,6 @@ class RecordInputActivity : AppCompatActivity() {
         photoUri = uri
 
         // 3. カメラ起動
-        // ここで作成したばかりの 'uri' (非Null) を渡せばエラーになりません
         takePictureLauncher.launch(uri)
     }
 
@@ -478,6 +485,7 @@ class RecordInputActivity : AppCompatActivity() {
         }
 
         if (isEditMode && editRecordId != null) {
+            // 編集時の処理
             val updateData = hashMapOf<String, Any>(
                 "menuName" to menuName,
                 "date" to recordDate,
@@ -498,14 +506,18 @@ class RecordInputActivity : AppCompatActivity() {
             userRecordsRef.document(editRecordId!!)
                 .update(updateData)
                 .addOnSuccessListener {
-                    Toast.makeText(this, "更新しました", Toast.LENGTH_SHORT).show()
-                    finish()
+                    // ★編集後もAIアドバイスを更新する
+                    generateAndSaveAiAdvice(uid) {
+                        Toast.makeText(this, "更新しました", Toast.LENGTH_SHORT).show()
+                        finish()
+                    }
                 }
                 .addOnFailureListener { e ->
                     handleSaveError(e)
                 }
 
         } else {
+            // 新規登録時の処理
             val newRecord = Record(
                 userId = uid,
                 menuName = menuName,
@@ -524,11 +536,83 @@ class RecordInputActivity : AppCompatActivity() {
             userRecordsRef.add(newRecord)
                 .addOnSuccessListener { documentReference ->
                     documentReference.update("id", documentReference.id)
-                    showSuccessDialog(uid, documentReference.id)
+
+                    // ★追加: 保存成功後にAIアドバイスを生成して保存
+                    generateAndSaveAiAdvice(uid) {
+                        // AI生成完了後に成功ダイアログを表示
+                        showSuccessDialog(uid, documentReference.id)
+                    }
                 }
                 .addOnFailureListener { e ->
                     handleSaveError(e)
                 }
+        }
+    }
+
+    // ★追加: AIアドバイスを生成してユーザー情報に保存する処理
+    private fun generateAndSaveAiAdvice(uid: String, onComplete: () -> Unit) {
+        lifecycleScope.launch {
+            try {
+                // UI表示更新
+                Toast.makeText(this@RecordInputActivity, "AIがアドバイスを作成中...", Toast.LENGTH_SHORT).show()
+
+                val db = FirebaseFirestore.getInstance()
+
+                // 1. 直近の食事記録を取得 (最新2件)
+                val recordsSnapshot = db.collection("users").document(uid)
+                    .collection("my_records")
+                    .orderBy("date", Query.Direction.DESCENDING)
+                    .limit(2) // 2件のみ参照
+                    .get()
+                    .await()
+
+                val recentMenus = recordsSnapshot.documents.mapNotNull { doc ->
+                    doc.getString("menuName")
+                }
+
+                // 2. アレルギー情報を取得
+                val userSnapshot = db.collection("users").document(uid).get().await()
+                val allergies = userSnapshot.get("allergies") as? List<String> ?: emptyList()
+
+                val allergyText = if (allergies.isNotEmpty()) {
+                    "（ユーザーのアレルギー: ${allergies.joinToString(", ")}）"
+                } else {
+                    ""
+                }
+
+                // 3. AIへのプロンプト作成
+                val prompt = """
+                   あなたは親しみやすい栄養管理のパートナーキャラクターです。
+                    ユーザーの直近の食事記録を見て、40文字以内で短く、次の料理のおすすめを提案してください。
+                   栄養バランスへのアドバイスや、褒め言葉を含めてください。
+                    
+                    【直近の食事】
+                    ${recentMenus.joinToString("\n")}
+                    
+                    $allergyText
+                    
+                    口調の例：
+                    「野菜も摂れていて偉いですね！この調子！」
+                    「お肉が続いてますね、次はお魚はいかが？」
+                    「美味しそう！でもちょっとカロリー高めかも？」
+                """.trimIndent()
+
+                // 4. AI生成実行
+                val response = textGenerativeModel.generateContent(prompt)
+                val comment = response.text?.trim() ?: "今日も良い食事を！"
+
+                // 5. 生成されたコメントをユーザー情報として保存
+                db.collection("users").document(uid)
+                    .update("latestAiAdvice", comment)
+                    .await()
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // エラー時はユーザーには通知せず、処理を続行（ログのみ）
+            } finally {
+                // 成功・失敗に関わらず完了コールバックを呼ぶ
+                onComplete()
+            }
         }
     }
 
@@ -538,6 +622,9 @@ class RecordInputActivity : AppCompatActivity() {
     }
 
     private fun showSuccessDialog(uid: String, recordId: String) {
+        // Activityが終了している場合はダイアログを出さない
+        if (isFinishing || isDestroyed) return
+
         val dialogView = layoutInflater.inflate(R.layout.dialog_record_success, null)
         val ratingBar = dialogView.findViewById<RatingBar>(R.id.ratingBar)
 
