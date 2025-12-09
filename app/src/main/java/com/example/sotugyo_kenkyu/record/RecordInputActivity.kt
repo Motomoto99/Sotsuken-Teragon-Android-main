@@ -19,6 +19,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider // 追加
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -41,6 +42,7 @@ import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File // 追加
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -51,6 +53,9 @@ class RecordInputActivity : AppCompatActivity() {
     private lateinit var imagePhoto: ImageView
     private var selectedImageUri: Uri? = null
 
+    // ★追加: カメラ撮影用の一時URIを保持する変数
+    private var photoUri: Uri? = null
+
     private val calendar = Calendar.getInstance()
 
     // 編集モード用変数
@@ -58,17 +63,18 @@ class RecordInputActivity : AppCompatActivity() {
     private var editRecordId: String? = null
     private var originalImageUrl: String = ""
     private var currentRating: Float = 0f
-    private var originalPostedAt: Timestamp? = null // 既存の公開日時
+    private var originalPostedAt: Timestamp? = null
 
-    // ★追加: 選択されたレシピを保持する変数
+    // 選択されたレシピを保持する変数
     private var selectedRecipe: Recipe? = null
 
-    // ★ 画像判定用 Firebase AI Logic モデル
+    // 画像判定用 Firebase AI Logic モデル
     private val imageJudgeModel: GenerativeModel by lazy {
         Firebase.ai(backend = GenerativeBackend.googleAI())
             .generativeModel(modelName = "gemini-2.5-flash")
     }
 
+    // アルバムから選択するランチャー
     private val pickImageLauncher =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
             if (uri != null) {
@@ -82,7 +88,21 @@ class RecordInputActivity : AppCompatActivity() {
             }
         }
 
-    // ★追加: レシピ選択画面へのランチャー
+    // ★追加: カメラ撮影ランチャー
+    private val takePictureLauncher =
+        registerForActivityResult(ActivityResultContracts.TakePicture()) { isSuccess ->
+            if (isSuccess && photoUri != null) {
+                // 撮影成功時の処理
+                selectedImageUri = photoUri
+                Glide.with(this)
+                    .load(photoUri)
+                    .centerCrop()
+                    .into(imagePhoto)
+                findViewById<View>(R.id.layoutPhotoPlaceholder).visibility = View.GONE
+            }
+        }
+
+    // レシピ選択画面へのランチャー
     private val recipeSelectLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
@@ -152,8 +172,7 @@ class RecordInputActivity : AppCompatActivity() {
                 findViewById<View>(R.id.layoutPhotoPlaceholder).visibility = View.GONE
             }
 
-            // ★追加: 既存のレシピ情報の復元
-            // 呼び出し元(RecordDetailActivity等)でこれらのExtraをputしている前提
+            // 既存のレシピ情報の復元
             val rId = intent.getStringExtra("RECIPE_ID")
             if (!rId.isNullOrEmpty()) {
                 selectedRecipe = Recipe(
@@ -165,7 +184,7 @@ class RecordInputActivity : AppCompatActivity() {
             }
         }
 
-        // ★追加: レシピ表示の更新（初期表示）
+        // レシピ表示の更新（初期表示）
         updateRecipeUi()
 
         // 初期状態のスイッチテキストを設定
@@ -184,9 +203,9 @@ class RecordInputActivity : AppCompatActivity() {
             showDiscardConfirmationDialog()
         }
 
-        // 写真追加ボタン
+        // 写真追加ボタン (★修正: ダイアログを表示)
         cardPhoto.setOnClickListener {
-            pickImageLauncher.launch("image/*")
+            showImageSourceDialog()
         }
 
         // 日付選択
@@ -205,7 +224,6 @@ class RecordInputActivity : AppCompatActivity() {
 
         // レシピ紐づけ
         containerRecipe.setOnClickListener {
-            // ★変更: レシピ選択Activityを起動
             val intent = Intent(this, RecipeSelectActivity::class.java)
             recipeSelectLauncher.launch(intent)
         }
@@ -219,7 +237,7 @@ class RecordInputActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // 新規作成時のみ画像必須（編集時は既存があればOK）
+            // 新規作成時のみ画像必須
             if (!isEditMode && selectedImageUri == null) {
                 Toast.makeText(this, "写真を追加してください", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
@@ -231,7 +249,7 @@ class RecordInputActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // ★ ここからコルーチンで AI 判定 → 保存処理
+            // AI 判定 → 保存処理
             lifecycleScope.launch {
                 buttonSave.isEnabled = false
                 Toast.makeText(
@@ -278,15 +296,13 @@ class RecordInputActivity : AppCompatActivity() {
                     }
                 }
 
-                // ここまで来たら料理画像としてOKなので、従来の保存処理へ
+                // 保存処理へ
                 val memo = inputMemo.text.toString()
                 val isPublic = switchPublic.isChecked
 
                 if (selectedImageUri != null) {
-                    // 新しい画像をアップロードしてから保存
                     uploadImageAndSave(user.uid, menuName, memo, isPublic)
                 } else {
-                    // 画像変更なし（編集モードのみここに来る）
                     if (isEditMode) {
                         saveRecordToFirestore(
                             user.uid,
@@ -296,7 +312,6 @@ class RecordInputActivity : AppCompatActivity() {
                             originalImageUrl
                         )
                     } else {
-                        // 通常ここには来ない
                         buttonSave.isEnabled = true
                     }
                 }
@@ -304,21 +319,54 @@ class RecordInputActivity : AppCompatActivity() {
         }
     }
 
-    // ★追加: レシピ選択状態をUIに反映
+    // ★追加: 画像の選択方法を選ぶダイアログを表示
+    private fun showImageSourceDialog() {
+        val options = arrayOf("カメラで撮影", "アルバムから選択")
+        AlertDialog.Builder(this)
+            .setTitle("写真を追加")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> startCamera() // カメラ起動
+                    1 -> pickImageLauncher.launch("image/*") // アルバム起動
+                }
+            }
+            .show()
+    }
+
+    // ★追加: カメラを起動する処理
+    private fun startCamera() {
+        // 1. 一時保存用のファイルを作成
+        val photoFile = File(externalCacheDir, "temp_image_${System.currentTimeMillis()}.jpg")
+
+        // 2. FileProviderを使ってURIを取得
+        // 一旦ローカル変数(val)に入れることで、スマートキャスト（自動変換）を効かせやすくします
+        val uri = FileProvider.getUriForFile(
+            this,
+            "${packageName}.fileprovider",
+            photoFile
+        )
+
+        // クラス変数のphotoUriにも保存しておく（撮影後の処理で使うため）
+        photoUri = uri
+
+        // 3. カメラ起動
+        // ここで作成したばかりの 'uri' (非Null) を渡せばエラーになりません
+        takePictureLauncher.launch(uri)
+    }
+
+    // レシピ選択状態をUIに反映
     private fun updateRecipeUi() {
         val textRecipeName = findViewById<TextView>(R.id.textRecipeName)
         if (selectedRecipe != null) {
             textRecipeName.text = selectedRecipe!!.recipeTitle
-            // 必要に応じて色を変更
             textRecipeName.setTextColor(getColor(R.color.black))
         } else {
             textRecipeName.text = "レシピを選択"
-            // デフォルトの色（XMLに準拠するか、明示的に指定）
             textRecipeName.setTextColor(getColor(android.R.color.darker_gray))
         }
     }
 
-    // 画像 URI → Bitmap 変換（IO スレッド）
+    // 画像 URI → Bitmap 変換
     private suspend fun loadBitmapFromUri(uri: Uri): Bitmap? = withContext(Dispatchers.IO) {
         try {
             contentResolver.openInputStream(uri)?.use { input ->
@@ -332,7 +380,6 @@ class RecordInputActivity : AppCompatActivity() {
 
     // Firebase AI Logic で「料理画像かどうか」を判定
     private suspend fun judgeImageIsFood(bitmap: Bitmap): Boolean {
-        // PromptRepository から判定用プロンプトを取得（なければデフォルト）
         val prompt = PromptRepository.getImageJudgePrompt()
 
         val input = content {
@@ -354,7 +401,6 @@ class RecordInputActivity : AppCompatActivity() {
             originalImageUrl = intent.getStringExtra("IMAGE_URL") ?: ""
             currentRating = intent.getFloatExtra("RATING", 0f)
 
-            // 既存の公開日時を受け取る
             val postedTime = intent.getLongExtra("POSTED_TIMESTAMP", 0)
             if (postedTime > 0) {
                 originalPostedAt = Timestamp(Date(postedTime))
@@ -417,29 +463,21 @@ class RecordInputActivity : AppCompatActivity() {
         val userRecordsRef = db.collection("users").document(uid).collection("my_records")
 
         val originalIsPublic = intent.getBooleanExtra("IS_PUBLIC", false)
-
-        // 日付（date）は常にカレンダーで指定した日を使う
         val recordDate = Timestamp(calendar.time)
 
-        // 公開日時（postedAt）の決定ロジック
         val postedAtDate = if (isPublic) {
             if (!isEditMode) {
-                // 新規作成で「公開」なら、現在時刻
                 Timestamp.now()
             } else if (!originalIsPublic) {
-                // 編集で「非公開→公開」なら、現在時刻
                 Timestamp.now()
             } else {
-                // 「公開→公開」なら、以前の公開日を維持
                 originalPostedAt ?: recordDate
             }
         } else {
-            // 非公開なら null
             null
         }
 
         if (isEditMode && editRecordId != null) {
-            // 更新処理
             val updateData = hashMapOf<String, Any>(
                 "menuName" to menuName,
                 "date" to recordDate,
@@ -447,15 +485,12 @@ class RecordInputActivity : AppCompatActivity() {
                 "imageUrl" to imageUrl,
                 "isPublic" to isPublic,
                 "rating" to currentRating,
-
-                // ★追加: レシピ情報の更新
                 "recipeId" to (selectedRecipe?.id ?: ""),
                 "recipeTitle" to (selectedRecipe?.recipeTitle ?: ""),
                 "recipeUrl" to (selectedRecipe?.recipeUrl ?: ""),
                 "recipeImageUrl" to (selectedRecipe?.foodImageUrl ?: "")
             )
 
-            // postedAt を更新する必要があるときだけフィールドに含める
             if (postedAtDate != null) {
                 updateData["postedAt"] = postedAtDate
             }
@@ -471,18 +506,15 @@ class RecordInputActivity : AppCompatActivity() {
                 }
 
         } else {
-            // 新規作成処理
             val newRecord = Record(
                 userId = uid,
                 menuName = menuName,
-                date = recordDate,           // 記録日
-                postedAt = postedAtDate,     // みんなの投稿用日時
+                date = recordDate,
+                postedAt = postedAtDate,
                 memo = memo,
                 imageUrl = imageUrl,
                 isPublic = isPublic,
                 rating = 0f,
-
-                // ★追加: レシピ情報の保存
                 recipeId = selectedRecipe?.id ?: "",
                 recipeTitle = selectedRecipe?.recipeTitle ?: "",
                 recipeUrl = selectedRecipe?.recipeUrl ?: "",
