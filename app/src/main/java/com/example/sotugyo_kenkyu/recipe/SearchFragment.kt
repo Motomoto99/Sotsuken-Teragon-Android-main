@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
+import android.widget.ImageView // 修正: ここを追加
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -17,7 +17,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.sotugyo_kenkyu.ImageResultFragment
 import com.example.sotugyo_kenkyu.R
-import com.example.sotugyo_kenkyu.recipe.SearchInputFragment
 
 class SearchFragment : Fragment() {
 
@@ -69,7 +68,8 @@ class SearchFragment : Fragment() {
         }
 
         // --- 2. カメラ検索ボタンの処理 ---
-        val btnCameraSearch = view.findViewById<LinearLayout>(R.id.btnCameraSearch)
+        // 修正箇所: ここを LinearLayout から ImageView に変更しました
+        val btnCameraSearch = view.findViewById<ImageView>(R.id.btnCameraSearch)
         btnCameraSearch.setOnClickListener {
             // ボタンが押されたら画像選択画面(ギャラリー等)を開く
             pickImageLauncher.launch("image/*")
