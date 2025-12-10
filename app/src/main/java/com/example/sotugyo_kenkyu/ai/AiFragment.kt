@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -78,6 +79,15 @@ class AiFragment : Fragment(), RecognitionListener {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        val header = view.findViewById<View>(R.id.header)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
+            val systemBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            // 元のPadding(16dp) + ステータスバーの高さ
+            val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
+            v.updatePadding(top = systemBars.top + originalPaddingTop)
+            insets
+        }
 
         recyclerView = view.findViewById(R.id.recyclerViewChat)
         editTextMessage = view.findViewById(R.id.editTextMessage)
