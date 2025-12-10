@@ -68,15 +68,21 @@ class AccountSettingsActivity : AppCompatActivity() {
 
         val menuAllergy = findViewById<View>(R.id.menuAllergySettings)
         val menuTerms = findViewById<View>(R.id.menuTerms)
-        val menuSignOut = findViewById<View>(R.id.menuSignOut)
 
+        // ★変更: IDが変わったため修正
+        val menuDeleteAccount = findViewById<View>(R.id.menuDeleteAccount) // アカウント削除(リスト)
+        val textSignOut = findViewById<View>(R.id.textSignOut) // サインアウト(下部テキスト)
+
+        val menuPrivacyPolicy = findViewById<View>(R.id.menuPrivacyPolicy)
+        val menuContact = findViewById<View>(R.id.menuContact)
+
+        // WindowInsets
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
             v.updatePadding(top = systemBars.top + originalPaddingTop)
             insets
         }
-
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, 0, systemBars.right, systemBars.bottom)
@@ -100,26 +106,28 @@ class AccountSettingsActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        menuSignOut.setOnClickListener {
-            showSignOutConfirmation()
-        }
-
-        buttonEditIcon.setOnClickListener {
-            pickImageLauncher.launch("image/*")
-        }
-
-        val menuPrivacyPolicy = findViewById<View>(R.id.menuPrivacyPolicy) // 前回のxml修正で追加したID
-
         menuPrivacyPolicy.setOnClickListener {
             val intent = Intent(this, PrivacyPolicyActivity::class.java)
             startActivity(intent)
         }
 
-        val menuContact = findViewById<View>(R.id.menuContact) // 前回のレイアウト修正で追加したID
-
         menuContact.setOnClickListener {
             val intent = Intent(this, ContactActivity::class.java)
             startActivity(intent)
+        }
+
+        // ★変更: アカウント削除ボタンの処理
+        menuDeleteAccount.setOnClickListener {
+            showDeleteAccountConfirmation()
+        }
+
+        // ★変更: サインアウトボタンの処理
+        textSignOut.setOnClickListener {
+            showSignOutConfirmation()
+        }
+
+        buttonEditIcon.setOnClickListener {
+            pickImageLauncher.launch("image/*")
         }
 
         buttonEditUsername.setOnClickListener {
@@ -136,6 +144,16 @@ class AccountSettingsActivity : AppCompatActivity() {
 
         buttonSaveUsername.setOnClickListener {
             saveUsername()
+        }
+
+        // バージョン情報の自動表示
+        try {
+            val pInfo = packageManager.getPackageInfo(packageName, 0)
+            val version = pInfo.versionName
+            val versionText = findViewById<TextView>(R.id.textVersion)
+            versionText.text = "Ver $version"
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -155,11 +173,44 @@ class AccountSettingsActivity : AppCompatActivity() {
             .show()
     }
 
-    // ★★★ 修正: Firestoreのデータを正として読み込む ★★★
+    // ★追加: アカウント削除の確認ダイアログと処理
+    private fun showDeleteAccountConfirmation() {
+        AlertDialog.Builder(this)
+            .setTitle("アカウント削除")
+            .setMessage("本当にアカウントを削除しますか？\nこの操作は取り消せません。\nすべてのデータが削除されます。")
+            .setPositiveButton("削除する") { _, _ ->
+                deleteAccount()
+            }
+            .setNegativeButton("キャンセル", null)
+            .show()
+    }
+
+    private fun deleteAccount() {
+        val user = auth.currentUser
+        if (user != null) {
+            // Firestoreのユーザーデータ削除（任意実装）
+            // 注意: 本来はCloud Functions等で連動させるのが安全ですが、ここでは簡易的にクライアントから削除を試みます
+            db.collection("users").document(user.uid).delete()
+
+            // Firebase Authからユーザー削除
+            user.delete()
+                .addOnSuccessListener {
+                    Toast.makeText(this, "アカウントを削除しました", Toast.LENGTH_LONG).show()
+                    val intent = Intent(this, LoginActivity::class.java)
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    startActivity(intent)
+                    finish()
+                }
+                .addOnFailureListener { e ->
+                    // 再認証が必要な場合のエラー処理
+                    Toast.makeText(this, "削除に失敗しました: ${e.message}\n再ログインしてから試してください。", Toast.LENGTH_LONG).show()
+                }
+        }
+    }
+
     private fun loadUserProfile() {
         val user = auth.currentUser ?: return
 
-        // まずデフォルトを表示（読み込み待ち）
         Glide.with(this)
             .load(R.drawable.outline_account_circle_24)
             .circleCrop()
@@ -168,13 +219,11 @@ class AccountSettingsActivity : AppCompatActivity() {
         db.collection("users").document(user.uid).get()
             .addOnSuccessListener { document ->
                 if (document != null && document.exists()) {
-                    // 名前
                     val username = document.getString("username")
                         ?: user.displayName
                         ?: "初期ユーザー"
                     editTextUsername.setText(username)
 
-                    // アイコン (空文字ならデフォルトのまま)
                     val photoUrl = document.getString("photoUrl")
                     if (!photoUrl.isNullOrEmpty()) {
                         Glide.with(this)
@@ -191,7 +240,6 @@ class AccountSettingsActivity : AppCompatActivity() {
 
     private fun uploadImage(imageUri: Uri) {
         val user = auth.currentUser ?: return
-
         Toast.makeText(this, "画像をアップロード中...", Toast.LENGTH_SHORT).show()
 
         val storageRef = storage.reference.child("users/${user.uid}/profile.jpg")
@@ -214,11 +262,9 @@ class AccountSettingsActivity : AppCompatActivity() {
             .setPhotoUri(uri)
             .build()
 
-        // Auth側のプロファイルも更新しておく（必須ではないが念のため）
         user.updateProfile(profileUpdates)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    // ★ Firestoreを更新
                     val userData = hashMapOf("photoUrl" to uri.toString())
                     db.collection("users").document(user.uid)
                         .set(userData, SetOptions.merge())

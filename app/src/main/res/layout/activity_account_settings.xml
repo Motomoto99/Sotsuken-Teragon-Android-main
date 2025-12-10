@@ -320,7 +320,7 @@
             <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#EEEEEE" />
 
             <LinearLayout
-                android:id="@+id/menuSignOut"
+                android:id="@+id/menuDeleteAccount"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@android:color/white"
@@ -335,7 +335,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="サインアウト"
+                    android:text="アカウント削除"
                     android:textSize="16sp"
                     android:textColor="#FF0000" />
 
@@ -349,11 +349,11 @@
             <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#EEEEEE" />
 
             <TextView
-                android:id="@+id/textDeleteAccount"
+                android:id="@+id/textSignOut"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="32dp"
-                android:text="アカウント削除"
+                android:text="サインアウト"
                 android:padding="16dp"
                 android:gravity="center"
                 android:textSize="14sp"
