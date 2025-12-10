@@ -13,10 +13,8 @@
         android:layout_height="wrap_content"
         android:background="@android:color/white"
         android:elevation="4dp"
-        android:paddingTop="16dp"
-        android:paddingBottom="16dp"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="16dp"
         app:layout_constraintTop_toTopOf="parent">
 
         <TextView
@@ -35,12 +33,12 @@
         <TextView
             android:id="@+id/textTitle"
             android:layout_width="wrap_content"
-            android:layout_height="48dp"
+            android:layout_height="52dp"
             android:text="記録"
             android:textColor="#404040"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:gravity="center"
+            android:gravity="center_vertical"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
