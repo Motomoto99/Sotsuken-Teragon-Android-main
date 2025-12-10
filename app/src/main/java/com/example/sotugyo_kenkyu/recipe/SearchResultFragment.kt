@@ -242,7 +242,7 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
         Log.d("Algolia", "検索: $keyword, ページ: $currentPage")
 
         // 通信なのでコルーチンを使う（ここは変わらない）
-        lifecycleScope.launch {
+        viewLifecycleOwner.lifecycleScope.launch {
             try {
                 // 1. JSONを作る（デモと同じ！）
                 val jsonBodyString = buildJsonObject {
@@ -271,6 +271,9 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
                     if (!response.isSuccessful) throw Exception("通信エラー: ${response.code}")
                     response.body?.string() ?: ""
                 }
+
+                // UI操作の前に「生きてる？」チェック
+                if (!isAdded) return@launch
 
                 // 4. 結果をパースする（デモと同じ！）
                 // decodeFromJsonElement ではなく decodeFromString を使うわ
@@ -308,8 +311,19 @@ class SearchResultFragment : Fragment(R.layout.fragment_search_result) {
                 }
 
             } catch (e: Exception) {
+                // キャンセル例外（戻るボタン等）なら無視する
+                if (e is kotlinx.coroutines.CancellationException) {
+                    Log.d("Algolia", "検索キャンセル")
+                    return@launch
+                }
+
                 Log.e("Algolia", "エラー", e)
-                Toast.makeText(context, "検索失敗: ${e.message}", Toast.LENGTH_SHORT).show()
+                // 画面が生きてる時だけエラー表示
+                if (isAdded) {
+                    context?.let {
+                        Toast.makeText(it, "検索失敗: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
             }finally {
                 // ★終わったらフラグを下ろす（重要！）
                 isLoading = false
