@@ -70,6 +70,17 @@ class RecordInputActivity : AppCompatActivity() {
 
     // 選択されたレシピを保持する変数
     private var selectedRecipe: Recipe? = null
+    private lateinit var loadingOverlay: View
+    private lateinit var inputMenuName: EditText
+    private lateinit var inputMemo: EditText
+    private lateinit var switchPublic: MaterialSwitch
+    private lateinit var containerDate: View
+    private lateinit var containerRecipe: View
+    private lateinit var cardPhoto: View
+    private lateinit var buttonSave: TextView
+    private lateinit var buttonCancel: TextView
+    private lateinit var textDate: TextView
+    private lateinit var textTitle: TextView
 
     // 画像判定用 Firebase AI Logic モデル
     private val imageJudgeModel: GenerativeModel by lazy {
@@ -127,6 +138,20 @@ class RecordInputActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_record_input)
+
+        // --- ビューの取得 (ローカル変数からメンバ変数への代入に変更) ---
+        loadingOverlay = findViewById(R.id.loadingOverlay) // 追加
+        buttonCancel = findViewById(R.id.buttonCancel)
+        buttonSave = findViewById(R.id.buttonSave)
+        textTitle = findViewById(R.id.textTitle)
+        textDate = findViewById(R.id.textDate)
+        containerDate = findViewById(R.id.containerDate)
+        cardPhoto = findViewById(R.id.cardPhoto)
+        imagePhoto = findViewById(R.id.imagePhoto)
+        inputMenuName = findViewById(R.id.inputMenuName)
+        inputMemo = findViewById(R.id.inputMemo)
+        switchPublic = findViewById(R.id.switchPublic)
+        containerRecipe = findViewById(R.id.containerRecipe)
 
         // 編集モードかどうか判定
         checkEditMode()
@@ -260,12 +285,12 @@ class RecordInputActivity : AppCompatActivity() {
 
             // AI 判定 → 保存処理
             lifecycleScope.launch {
-                buttonSave.isEnabled = false
                 Toast.makeText(
                     this@RecordInputActivity,
                     "保存中...",
                     Toast.LENGTH_SHORT
                 ).show()
+                setLoadingMode(true)
 
                 // 新しい画像が選択されている場合のみ判定する
                 if (selectedImageUri != null) {
@@ -276,7 +301,7 @@ class RecordInputActivity : AppCompatActivity() {
                             "画像の読み込みに失敗しました",
                             Toast.LENGTH_SHORT
                         ).show()
-                        buttonSave.isEnabled = true
+                        setLoadingMode(false)
                         return@launch
                     }
 
@@ -289,7 +314,7 @@ class RecordInputActivity : AppCompatActivity() {
                             "画像の判定に失敗しました。ネットワーク状態を確認してください。",
                             Toast.LENGTH_SHORT
                         ).show()
-                        buttonSave.isEnabled = true
+                        setLoadingMode(false)
                         return@launch
                     }
 
@@ -300,7 +325,7 @@ class RecordInputActivity : AppCompatActivity() {
                             .setPositiveButton("OK", null)
                             .show()
 
-                        buttonSave.isEnabled = true
+                        setLoadingMode(false)
                         return@launch
                     }
                 }
@@ -321,11 +346,30 @@ class RecordInputActivity : AppCompatActivity() {
                             originalImageUrl
                         )
                     } else {
-                        buttonSave.isEnabled = true
+                        setLoadingMode(false)
                     }
                 }
             }
         }
+    }
+
+    // ★追加: ローディング状態の切り替えメソッド
+    private fun setLoadingMode(isLoading: Boolean) {
+        // オーバーレイの表示・非表示
+        loadingOverlay.visibility = if (isLoading) View.VISIBLE else View.GONE
+
+        // 各UIパーツの有効・無効切り替え
+        inputMenuName.isEnabled = !isLoading
+        inputMemo.isEnabled = !isLoading
+        switchPublic.isEnabled = !isLoading
+        containerDate.isEnabled = !isLoading
+        containerRecipe.isEnabled = !isLoading
+        cardPhoto.isEnabled = !isLoading
+        buttonSave.isEnabled = !isLoading
+        buttonCancel.isEnabled = !isLoading
+
+        // オーバーレイ表示中はクリックイベントも拾うようにXMLで clickable="true" にしていますが、
+        // 念のため背後のビューが反応しないように制御しています。
     }
 
     // 画像の選択方法を選ぶダイアログを表示
@@ -455,7 +499,7 @@ class RecordInputActivity : AppCompatActivity() {
             }
             .addOnFailureListener {
                 Toast.makeText(this, "画像のアップロードに失敗しました", Toast.LENGTH_SHORT).show()
-                findViewById<View>(R.id.buttonSave).isEnabled = true
+                setLoadingMode(false)
             }
     }
 
@@ -618,7 +662,7 @@ class RecordInputActivity : AppCompatActivity() {
 
     private fun handleSaveError(e: Exception) {
         Toast.makeText(this, "保存失敗: ${e.message}", Toast.LENGTH_SHORT).show()
-        findViewById<View>(R.id.buttonSave).isEnabled = true
+        setLoadingMode(false)
     }
 
     private fun showSuccessDialog(uid: String, recordId: String) {
