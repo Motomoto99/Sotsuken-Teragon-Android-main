@@ -9,6 +9,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -21,6 +22,28 @@ class SearchInputFragment : Fragment(R.layout.fragment_search_input) {
 
     private lateinit var historyManager: SearchHistoryManager
     private lateinit var historyAdapter: SearchHistoryAdapter
+
+    // 「画像を選んで！」という依頼を出して、結果(URI)が返ってきたら動く場所
+    private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        // 画像が選ばれたとき (uriがnullじゃなければ成功)
+        if (uri != null) {
+            Log.d("ImageSearch", "Selected URI: $uri")
+
+            // 画像検索結果画面へ遷移
+            val fragment = ImageResultFragment()
+            val args = Bundle()
+            args.putString("IMAGE_URI", uri.toString()) // ★URIを渡す！
+            fragment.arguments = args
+
+            parentFragmentManager.beginTransaction()
+                .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
+                .replace(R.id.fragment_container, fragment)
+                .addToBackStack(null)
+                .commit()
+        } else {
+            Log.d("ImageSearch", "No image selected")
+        }
+    }
 
     // ★追加: 選択モードかどうか
     private var isSelectionMode: Boolean = false
@@ -38,6 +61,7 @@ class SearchInputFragment : Fragment(R.layout.fragment_search_input) {
         val recyclerHistory = view.findViewById<RecyclerView>(R.id.recyclerHistory)
         val layoutEmptyHistory = view.findViewById<View>(R.id.layoutEmptyHistory)
         val searchContainer = view.findViewById<View>(R.id.searchContainer)
+        val btnImageSearchWide = view.findViewById<View>(R.id.btnImageSearchWide)
 
         // 2. ステータスバーの重なり対策
         ViewCompat.setOnApplyWindowInsetsListener(searchContainer) { v, insets ->
@@ -78,6 +102,13 @@ class SearchInputFragment : Fragment(R.layout.fragment_search_input) {
             val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showSoftInput(searchEditText, InputMethodManager.SHOW_IMPLICIT)
         }, 200)
+
+        // 画像検索ボタンが押されたらギャラリーを開く
+        btnImageSearchWide.setOnClickListener {
+            hideKeyboard(view)
+            // "image/*" は「すべての画像ファイル」という意味
+            pickImageLauncher.launch("image/*")
+        }
 
         // 5. 検索ボタン（エンターキー）の監視
         searchEditText.setOnEditorActionListener { _, actionId, event ->

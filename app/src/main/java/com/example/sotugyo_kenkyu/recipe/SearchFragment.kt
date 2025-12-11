@@ -1,13 +1,10 @@
 package com.example.sotugyo_kenkyu.recipe
 
-import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView // 修正: ここを追加
 import android.widget.TextView
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -19,15 +16,6 @@ import com.example.sotugyo_kenkyu.R
 
 class SearchFragment : Fragment() {
 
-    // ★★★ 画像選択の結果を受け取るランチャー ★★★
-    // ポイント：この定義は必ず「クラスの直下（一番上）」に置いてください。
-    // これで "Attempting to launch an unregistered..." エラーを防ぎます。
-    private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
-            // 画像が選択されたら、遷移処理メソッドを呼び出す
-            navigateToImageSearchResult(uri)
-        }
-    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -66,14 +54,6 @@ class SearchFragment : Fragment() {
                 .commit()
         }
 
-        // --- 2. カメラ検索ボタンの処理 ---
-        // 修正箇所: ここを LinearLayout から ImageView に変更しました
-        val btnCameraSearch = view.findViewById<ImageView>(R.id.btnCameraSearch)
-        btnCameraSearch.setOnClickListener {
-            // ボタンが押されたら画像選択画面(ギャラリー等)を開く
-            pickImageLauncher.launch("image/*")
-        }
-
         // --- 3. カテゴリー一覧の設定 ---
         val recyclerView = view.findViewById<RecyclerView>(R.id.recyclerCategory)
         recyclerView.layoutManager = LinearLayoutManager(context)
@@ -108,21 +88,6 @@ class SearchFragment : Fragment() {
                     .commit()
             }
         }
-    }
-
-    // --- 画像検索結果画面への遷移処理 ---
-    private fun navigateToImageSearchResult(imageUri: Uri) {
-        val fragment = ImageResultFragment()
-
-        // 画像の情報を渡すためのバンドルを作る
-        val args = Bundle()
-        args.putString("IMAGE_URI", imageUri.toString())
-        fragment.arguments = args
-
-        parentFragmentManager.beginTransaction()
-            .replace(R.id.fragment_container, fragment)
-            .addToBackStack(null)
-            .commit()
     }
 
     // --- カテゴリーデータの生成 ---
