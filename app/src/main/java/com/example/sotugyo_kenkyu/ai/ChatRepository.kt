@@ -84,10 +84,12 @@ object ChatRepository {
 
     /**
      * 過去チャット一覧を取得（タイトル＋日時）
-     * ※今はまだ一覧画面で使っていなくてもOK（将来用）
+     * ★変更: 最新30件のみ保持し、それより古いものは削除する
      */
     suspend fun loadChatSessions(): List<ChatSession> {
         val uid = uidOrThrow()
+
+        // 1. 全件取得（更新日時降順）
         val snap = db.collection("users")
             .document(uid)
             .collection("chats")
@@ -95,7 +97,26 @@ object ChatRepository {
             .get()
             .await()
 
-        return snap.documents.map { d ->
+        val allDocs = snap.documents
+        val keepLimit = 30
+
+        // 2. 30件を超える場合は削除処理を行う
+        if (allDocs.size > keepLimit) {
+            val docsToDelete = allDocs.drop(keepLimit)
+
+            // 31件目以降を削除
+            // ※件数が非常に多い場合、ロードに時間がかかる可能性があります
+            for (doc in docsToDelete) {
+                try {
+                    deleteChat(doc.id)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+
+        // 3. 保持する上位30件だけをリストに変換して返す
+        return allDocs.take(keepLimit).map { d ->
             ChatSession(
                 id = d.id,
                 title = d.getString("title") ?: "",
@@ -125,7 +146,10 @@ object ChatRepository {
             ChatMessage(message = text, isUser = (role == "user"))
         }
     }
-    // ChatRepository.kt の中に追加（ファイルのどこでもOK）
+
+    /**
+     * 指定されたチャットとメッセージを削除
+     */
     suspend fun deleteChat(chatId: String) {
         val uid = uidOrThrow()
 
@@ -147,5 +171,4 @@ object ChatRepository {
             batch.delete(chatRef)
         }.await()
     }
-
 }
