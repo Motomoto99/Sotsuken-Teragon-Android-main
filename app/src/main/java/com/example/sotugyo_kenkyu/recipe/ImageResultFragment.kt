@@ -33,6 +33,8 @@ class ImageResultFragment : Fragment() {
 
     private var selectedUriString: String? = null
 
+    private lateinit var historyManager: SearchHistoryManager
+
     // 画像判定専用の GenerativeModel
     private val imageJudgeModel: GenerativeModel by lazy {
         Firebase.ai(backend = GenerativeBackend.googleAI())
@@ -49,6 +51,8 @@ class ImageResultFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        historyManager = SearchHistoryManager(requireContext())
 
         // ★修正: 画面全体のViewに対してリスナーを設定し、確実にInsetsを取得する
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
@@ -142,6 +146,8 @@ class ImageResultFragment : Fragment() {
 
     // 解析結果(料理名)を受け取り、Algolia 検索画面へ遷移する
     private suspend fun showResult(dishName: String) = withContext(Dispatchers.Main) {
+        historyManager.saveHistory(dishName)
+
         Toast.makeText(context, "「$dishName」を検索します", Toast.LENGTH_SHORT).show()
 
         val fragment = SearchResultFragment()
@@ -149,9 +155,15 @@ class ImageResultFragment : Fragment() {
         args.putString("KEY_SEARCH_WORD", dishName)
         fragment.arguments = args
 
+        // 1. 自分（画像検索画面）を履歴から消す！
+        // これで、バックスタック上は [入力画面] の状態になる
+        parentFragmentManager.popBackStack()
+
+        // 2. 検索結果画面を表示（名札を忘れずに！）
+        // これで、[入力画面] -> [検索結果] という綺麗な履歴になる
         parentFragmentManager.beginTransaction()
-            .replace(R.id.fragment_container, fragment)
-            .addToBackStack(null)
+            .replace(R.id.fragment_container, fragment, "SEARCH_RESULT_TAG") // ★タグを追加
+            .addToBackStack("SEARCH_RESULT_TAG") // ★バックスタックにもタグを追加
             .commit()
 
         resetButtonState()
