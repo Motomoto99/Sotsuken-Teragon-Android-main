@@ -24,6 +24,9 @@
         android:layout_height="wrap_content"
         android:background="@android:color/white"
         android:elevation="4dp"
+
+        android:theme="@style/Theme.App.BottomNavigation"
+
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -31,6 +34,9 @@
         app:labelVisibilityMode="labeled"
         app:itemIconSize="30dp"
         android:fitsSystemWindows="true"
+
+        app:itemIconTint="@color/selector_bottom_nav"
+        app:itemTextColor="@color/selector_bottom_nav"
         />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
