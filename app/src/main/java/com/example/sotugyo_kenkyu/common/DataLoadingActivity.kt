@@ -187,7 +187,7 @@ class DataLoadingActivity : AppCompatActivity() {
         animation.interpolator = DecelerateInterpolator()
         animation.start()
 
-        textLoading.text = "loadingMessage $value%"
+        textLoading.text = "$loadingMessage $value%"
     }
 
     private fun goToHome() {
