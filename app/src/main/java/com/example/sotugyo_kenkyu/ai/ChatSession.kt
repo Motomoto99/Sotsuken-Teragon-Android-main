@@ -8,5 +8,7 @@ data class ChatSession(
     val id: String,
     val title: String,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    // ★追加: アレンジモードかどうか判定するフラグ
+    val isArrangeMode: Boolean = false
 )

@@ -6,6 +6,7 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.firestore
 import com.google.firebase.Firebase
 import kotlinx.coroutines.tasks.await
+import com.example.sotugyo_kenkyu.recipe.Recipe // ★追加
 
 object ChatRepository {
 
@@ -32,11 +33,86 @@ object ChatRepository {
             mapOf(
                 "title" to "",
                 "createdAt" to now,
-                "updatedAt" to now
+                "updatedAt" to now,
+                "isArrangeMode" to false // ★明示的にfalse
             )
         ).await()
 
         return docRef.id
+    }
+    /**
+     * ★追加: アレンジモード用のチャットセッションを作成
+     * レシピ情報も一緒に保存します。
+     */
+    suspend fun createArrangeChatSession(recipe: Recipe,title: String): String {
+        val uid = uidOrThrow()
+        val docRef = db.collection("users")
+            .document(uid)
+            .collection("chats")
+            .document()
+
+        val now = FieldValue.serverTimestamp()
+
+        // タイトルを「料理名 アレンジ」で初期化
+        val initialTitle = "${recipe.recipeTitle} アレンジ"
+
+        // 保存するレシピデータをMapに変換
+        // (Recipeクラスの全フィールドではなく、必要なものだけ保存するのが安全です)
+        val recipeMap = mapOf(
+            "id" to recipe.id,
+            "recipeTitle" to recipe.recipeTitle,
+            "foodImageUrl" to recipe.foodImageUrl,
+            "recipeMaterial" to (recipe.recipeMaterial ?: emptyList<String>()),
+            "servingAmounts" to recipe.servingAmounts,
+            "recipeSteps" to (recipe.recipeSteps ?: emptyList<String>())
+        )
+
+        docRef.set(
+            mapOf(
+                "title" to title,
+                "createdAt" to now,
+                "updatedAt" to now,
+                "isArrangeMode" to true,
+                "isCompleted" to false, // ★完了フラグ初期値
+                "sourceRecipe" to recipeMap // ★レシピ情報を埋め込む
+            )
+        ).await()
+
+        return docRef.id
+    }
+    /**
+     * ★追加: チャットを「完了済み」にする
+     */
+    suspend fun completeArrangeChat(chatId: String) {
+        val uid = uidOrThrow()
+        db.collection("users")
+            .document(uid)
+            .collection("chats")
+            .document(chatId)
+            .update("isCompleted", true)
+            .await()
+    }
+    /**
+     * ★追加: チャットの設定情報（メタデータ）を取得する
+     * 履歴を開いたときに、ボタンの状態を復元するために使います。
+     * 戻り値: Pair<isArrangeMode, isCompleted>
+     */
+    suspend fun getChatConfig(chatId: String): Pair<Boolean, Boolean> {
+        return try {
+            val uid = uidOrThrow()
+            val snap = db.collection("users")
+                .document(uid)
+                .collection("chats")
+                .document(chatId)
+                .get()
+                .await()
+
+            val isArrange = snap.getBoolean("isArrangeMode") ?: false
+            val isCompleted = snap.getBoolean("isCompleted") ?: false
+            Pair(isArrange, isCompleted)
+        } catch (e: Exception) {
+            Pair(false, false)
+        }
     }
 
     /**
@@ -123,6 +199,43 @@ object ChatRepository {
                 createdAt = d.getTimestamp("createdAt")?.seconds ?: 0L,
                 updatedAt = d.getTimestamp("updatedAt")?.seconds ?: 0L
             )
+        }
+    }
+    /**
+     * ★追加: 指定したチャットIDに紐付いているレシピ情報を取得する
+     * (ポップアップ表示用)
+     */
+    suspend fun getChatRecipeData(chatId: String): Recipe? {
+        val uid = uidOrThrow()
+        val snapshot = db.collection("users")
+            .document(uid)
+            .collection("chats")
+            .document(chatId)
+            .get()
+            .await()
+
+        // sourceRecipeフィールドがあるか確認
+        val sourceMap = snapshot.get("sourceRecipe") as? Map<String, Any> ?: return null
+
+        // MapからRecipeオブジェクトを復元
+        return try {
+            Recipe().apply {
+                id = sourceMap["id"] as? String ?: ""
+                recipeTitle = sourceMap["recipeTitle"] as? String ?: ""
+                foodImageUrl = sourceMap["foodImageUrl"] as? String ?: ""
+
+                @Suppress("UNCHECKED_CAST")
+                recipeMaterial = sourceMap["recipeMaterial"] as? List<String>
+
+                @Suppress("UNCHECKED_CAST")
+                servingAmounts = (sourceMap["servingAmounts"] as? List<String>) ?: emptyList()
+
+                @Suppress("UNCHECKED_CAST")
+                recipeSteps = sourceMap["recipeSteps"] as? List<String>
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 

@@ -217,6 +217,27 @@ class RecordInputActivity : AppCompatActivity() {
                 )
             }
         }
+        // ★★★ 追加: AIアレンジからの新規作成データの受け取り ★★★
+        else {
+            // 料理名
+            val arrangeMenu = intent.getStringExtra("ARRANGE_MENU_NAME")
+            if (!arrangeMenu.isNullOrEmpty()) {
+                inputMenuName.setText(arrangeMenu)
+            }
+
+            // メモ
+            val arrangeMemo = intent.getStringExtra("ARRANGE_MEMO")
+            if (!arrangeMemo.isNullOrEmpty()) {
+                inputMemo.setText(arrangeMemo)
+            }
+
+            // レシピ情報 (Serializableで受け取る)
+            // ※ RecipeSelectActivityと同じキー "SELECTED_RECIPE" を使用します
+            val arrangeRecipe = intent.getSerializableExtra("SELECTED_RECIPE") as? Recipe
+            if (arrangeRecipe != null) {
+                selectedRecipe = arrangeRecipe
+            }
+        }
 
         // レシピ表示の更新（初期表示）
         updateRecipeUi()

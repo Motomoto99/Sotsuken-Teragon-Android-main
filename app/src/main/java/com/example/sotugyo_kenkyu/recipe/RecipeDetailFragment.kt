@@ -20,6 +20,8 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import com.example.sotugyo_kenkyu.common.DataLoadingActivity // インポート追加
+import com.example.sotugyo_kenkyu.home.HomeActivity
 
 class RecipeDetailFragment : Fragment() {
 
@@ -64,6 +66,7 @@ class RecipeDetailFragment : Fragment() {
         val textSteps: TextView = view.findViewById(R.id.textStepsDetail)
         val buttonWeb: Button = view.findViewById(R.id.buttonOpenWeb)
         val backButton: ImageButton = view.findViewById(R.id.buttonBack)
+        val buttonAiArrange: Button = view.findViewById(R.id.buttonAiArrange)
 
         // --- 初期表示 ---
         textTitle.text = currentRecipe.recipeTitle
@@ -124,6 +127,39 @@ class RecipeDetailFragment : Fragment() {
 
         backButton.setOnClickListener {
             requireActivity().onBackPressedDispatcher.onBackPressed()
+        }
+        // ★追加: AIとアレンジボタンのクリックリスナー
+        buttonAiArrange.setOnClickListener {
+            val current = recipe
+            if (current == null) return@setOnClickListener
+
+            // 作り方がまだない（生成待ち）場合のガード
+            val steps = current.recipeSteps
+            val stepsText = current.recipeStepsText
+            val hasSteps = (!steps.isNullOrEmpty()) || (!stepsText.isNullOrEmpty())
+
+            if (!hasSteps) {
+                Toast.makeText(context, "作り方を生成中です。少々お待ちください。", Toast.LENGTH_SHORT).show()
+                // 必要であればここで再度生成リクエストを投げるなどの処理も可能ですが、
+                // 基本はSnapshotListenerが更新してくれるのを待ちます。
+                return@setOnClickListener
+            }
+
+            // ★修正: DataLoadingActivityを経由せず、直接HomeActivityへ遷移する
+            val intent = Intent(requireContext(), HomeActivity::class.java)
+            // レシピデータを渡す
+            intent.putExtra("EXTRA_RECIPE_DATA", current)
+            // 遷移先を指定するフラグ
+            intent.putExtra("EXTRA_DESTINATION", "DESTINATION_AI_ARRANGE")
+
+            // メッセージ設定
+            intent.putExtra("EXTRA_LOADING_MESSAGE", "AIとアレンジを準備中です...")
+
+            // ★追加: 重い読み込みをスキップする指示
+            intent.putExtra("EXTRA_SKIP_DATA_LOAD", true)
+
+            startActivity(intent)
+            // 詳細画面は閉じる必要がなければそのままでOK（戻ってきたときに残っている方が自然）
         }
     }
 

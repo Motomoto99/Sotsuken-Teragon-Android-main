@@ -1,7 +1,10 @@
 
 package com.example.sotugyo_kenkyu.ai
 
+import com.example.sotugyo_kenkyu.recipe.Recipe
+import com.google.firebase.auth.FirebaseAuth // ★追加
 import com.google.firebase.Firebase
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.tasks.await
 
@@ -13,6 +16,8 @@ object PromptRepository {
     private const val FIELD_IMAGE_JUDGE_PROMPT = "imageJudgePrompt"
 
     private const val FIELD_DISH_NAME_PROMPT = "dishNamePrompt"
+
+    private val db = FirebaseFirestore.getInstance()
 
     // --- チャット用システムプロンプト ---
     private val DEFAULT_PROMPT = """
@@ -143,6 +148,78 @@ object PromptRepository {
 - または「判定不能」
 のどちらかだけを返してください。
 """.trimIndent()
+
+    // アレルギー情報の取得 (共通パーツ)
+    private suspend fun getUserAllergiesPrompt(): String {
+        val user = FirebaseAuth.getInstance().currentUser ?: return ""
+        return try {
+            val snapshot = db.collection("users").document(user.uid).get().await()
+            val allergies = snapshot.get("allergies") as? List<String> ?: emptyList()
+
+            if (allergies.isNotEmpty()) {
+                """
+                【重要：ユーザーのアレルギー情報】
+                このユーザーは以下の食材に対してアレルギーを持っています。
+                レシピの提案や食材の確認を行う際は、以下の食材が含まれないように細心の注意を払ってください。
+                代替食材の提案が必要な場合は、アレルギー食材を含まないものを提案してください。
+                
+                対象アレルギー食材: ${allergies.joinToString("、")}
+                """.trimIndent()
+            } else {
+                ""
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            ""
+        }
+    }
+
+    // ★追加: 通常チャット用の完全なプロンプトを取得
+    suspend fun getInitialPrompt(): String {
+        val systemPrompt = getSystemPrompt()
+        val allergyInfo = getUserAllergiesPrompt()
+
+        return """
+            $systemPrompt
+            
+            $allergyInfo
+            
+            以上の方針に従って、今後のチャットに回答してください。
+        """.trimIndent()
+    }
+
+    // ★追加: アレンジチャット用の完全なプロンプトを取得
+    suspend fun getArrangePrompt(recipe: Recipe): String {
+        val systemPrompt = getSystemPrompt()
+        val allergyInfo = getUserAllergiesPrompt()
+
+        // レシピ情報をテキスト化
+        val recipeInfo = """
+            【今回アレンジする料理】
+            料理名: ${recipe.recipeTitle}
+            材料: ${recipe.recipeMaterial?.joinToString("、") ?: "情報なし"}
+            作り方: 
+            ${recipe.recipeSteps?.mapIndexed { i, s -> "${i+1}. $s" }?.joinToString("\n") ?: "情報なし"}
+        """.trimIndent()
+
+        return """
+            $systemPrompt
+
+            $allergyInfo
+
+            あなたは今から、ユーザーと一緒に上記の料理「${recipe.recipeTitle}」のアレンジを考えるアシスタントです。
+            以下の情報を踏まえて、ユーザーの相談に乗ってください。
+            
+            $recipeInfo
+            
+            ■あなたの役割
+            1. まず最初に、この料理の概要と、簡単にできるアレンジの例（1〜2個）、そして「どのようなアレンジがしたいですか？」とユーザーに問いかけてください。
+            2. ユーザーの回答に合わせて、足すべき食材や、調理法の変更などを具体的に提案してください。
+            3. 常に家庭で実践しやすい、現実的な提案を心がけてください。
+
+            以上の方針に従って会話を始めてください。
+        """.trimIndent()
+    }
 
 
     // --- ★追加: 記録画面から送るメッセージを作成する関数 ---

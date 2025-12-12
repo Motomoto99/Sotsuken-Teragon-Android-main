@@ -1,5 +1,6 @@
 package com.example.sotugyo_kenkyu.home
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
@@ -14,6 +15,7 @@ import com.example.sotugyo_kenkyu.ai.AiChatSessionManager
 import com.example.sotugyo_kenkyu.ai.AiFragment
 import com.example.sotugyo_kenkyu.common.TabContainerFragment
 import com.example.sotugyo_kenkyu.favorite.FavoriteFragment
+import com.example.sotugyo_kenkyu.recipe.Recipe
 import com.example.sotugyo_kenkyu.recipe.SearchFragment
 import com.example.sotugyo_kenkyu.record.RecordFragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -31,6 +33,7 @@ class HomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_home)
+
 
         // AIセッション準備
         lifecycleScope.launch {
@@ -93,6 +96,28 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         })
+        handleIntent(intent)
+    }
+    // ★追加: アプリ起動中(onNewIntent)にも反応できるようにメソッド化
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent) {
+        val destination = intent.getStringExtra("EXTRA_DESTINATION")
+        if (destination == "DESTINATION_AI_ARRANGE") {
+            val recipe = intent.getSerializableExtra("EXTRA_RECIPE_DATA") as? Recipe
+            if (recipe != null) {
+                // AiChatSessionManagerにデータを預ける（フェーズ2,3で使用）
+                // ※ AiChatSessionManagerにこのフィールドがない場合は追加が必要です
+                AiChatSessionManager.pendingArrangeRecipe = recipe
+
+                // AIタブへ切り替え
+                val bottomNavigation: BottomNavigationView = findViewById(R.id.bottomNavigation)
+                bottomNavigation.selectedItemId = R.id.nav_ai
+            }
+        }
     }
 
     private fun switchTab(tabId: Int) {

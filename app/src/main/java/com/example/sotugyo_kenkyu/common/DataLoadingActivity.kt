@@ -30,9 +30,12 @@ class DataLoadingActivity : AppCompatActivity() {
     private lateinit var progressBar: ProgressBar
     private lateinit var textLoading: TextView
 
-    // ホーム画面に渡す未読数
-    private var initialUnreadCount: Int = 0
+    private var skipDataLoad: Boolean = false
 
+    private var initialUnreadCount: Int = 0
+    private var loadingMessage: String = "データを読み込んでいます..."
+
+    // ホーム画面に渡す未読数
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_data_loading)
@@ -40,9 +43,16 @@ class DataLoadingActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         textLoading = findViewById(R.id.textLoading)
 
+        val customMessage = intent.getStringExtra("EXTRA_LOADING_MESSAGE")
+        if (!customMessage.isNullOrEmpty()) {
+            loadingMessage = customMessage
+        }
+
+        // ★追加: スキップフラグを受け取る
+        skipDataLoad = intent.getBooleanExtra("EXTRA_SKIP_DATA_LOAD", false)
+
         progressBar.max = 100
 
-        // 読み込みシーケンス開始
         startLoadingSequence()
     }
 
@@ -177,12 +187,21 @@ class DataLoadingActivity : AppCompatActivity() {
         animation.interpolator = DecelerateInterpolator()
         animation.start()
 
-        textLoading.text = "データを読み込んでいます... $value%"
+        textLoading.text = "loadingMessage $value%"
     }
 
     private fun goToHome() {
         val intent = Intent(this, HomeActivity::class.java)
         intent.putExtra("INITIAL_UNREAD_COUNT", initialUnreadCount)
+
+        // ★追加: レシピ遷移の情報があれば引き継ぐ
+        if (getIntent().hasExtra("EXTRA_DESTINATION")) {
+            val destination = getIntent().getStringExtra("EXTRA_DESTINATION")
+            val recipeData = getIntent().getSerializableExtra("EXTRA_RECIPE_DATA")
+
+            intent.putExtra("EXTRA_DESTINATION", destination)
+            intent.putExtra("EXTRA_RECIPE_DATA", recipeData)
+        }
 
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
