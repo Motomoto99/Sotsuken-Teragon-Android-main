@@ -160,7 +160,8 @@ object ChatRepository {
 
     /**
      * 過去チャット一覧を取得（タイトル＋日時）
-     * ★変更: 最新30件のみ保持し、それより古いものは削除する
+     * ★変更: お気に入り以外のチャットのみ、最新30件を保持し、それより古いものは削除する。
+     * お気に入りのチャットは削除せず残す。
      */
     suspend fun loadChatSessions(): List<ChatSession> {
         val uid = uidOrThrow()
@@ -174,33 +175,56 @@ object ChatRepository {
             .await()
 
         val allDocs = snap.documents
+
+        // ドキュメントをChatSessionオブジェクトに変換
+        val allSessions = allDocs.map { d ->
+            ChatSession(
+                id = d.id,
+                title = d.getString("title") ?: "",
+                createdAt = d.getTimestamp("createdAt")?.seconds ?: 0L,
+                updatedAt = d.getTimestamp("updatedAt")?.seconds ?: 0L,
+                isArrangeMode = d.getBoolean("isArrangeMode") ?: false,
+                // ★追加: Firestoreからお気に入り状態を取得
+                isFavorite = d.getBoolean("isFavorite") ?: false
+            )
+        }
+
         val keepLimit = 30
 
-        // 2. 30件を超える場合は削除処理を行う
-        if (allDocs.size > keepLimit) {
-            val docsToDelete = allDocs.drop(keepLimit)
+        // ★変更: お気に入りとそうでないものを分ける
+        val (favorites, nonFavorites) = allSessions.partition { it.isFavorite }
 
-            // 31件目以降を削除
-            // ※件数が非常に多い場合、ロードに時間がかかる可能性があります
-            for (doc in docsToDelete) {
+        // 2. お気に入りではないチャットが30件を超える場合は削除処理を行う
+        if (nonFavorites.size > keepLimit) {
+            val docsToDelete = nonFavorites.drop(keepLimit)
+
+            for (session in docsToDelete) {
                 try {
-                    deleteChat(doc.id)
+                    deleteChat(session.id)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }
         }
 
-        // 3. 保持する上位30件だけをリストに変換して返す
-        return allDocs.take(keepLimit).map { d ->
-            ChatSession(
-                id = d.id,
-                title = d.getString("title") ?: "",
-                createdAt = d.getTimestamp("createdAt")?.seconds ?: 0L,
-                updatedAt = d.getTimestamp("updatedAt")?.seconds ?: 0L
-            )
-        }
+        // 3. お気に入り全件 + お気に入り以外の最新30件 を結合して返す (再度日付順にソート)
+        val result = (favorites + nonFavorites.take(keepLimit)).sortedByDescending { it.updatedAt }
+        return result
     }
+
+    /**
+     * ★追加: チャットのお気に入り状態を更新する
+     */
+    suspend fun updateChatFavorite(chatId: String, isFavorite: Boolean) {
+        val uid = uidOrThrow()
+        db.collection("users")
+            .document(uid)
+            .collection("chats")
+            .document(chatId)
+            .update("isFavorite", isFavorite)
+            .await()
+    }
+
     /**
      * ★追加: 指定したチャットIDに紐付いているレシピ情報を取得する
      * (ポップアップ表示用)

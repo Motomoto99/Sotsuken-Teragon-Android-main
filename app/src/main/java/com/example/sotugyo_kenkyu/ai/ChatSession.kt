@@ -10,5 +10,6 @@ data class ChatSession(
     val createdAt: Long,
     val updatedAt: Long,
     // ★追加: アレンジモードかどうか判定するフラグ
-    val isArrangeMode: Boolean = false
+    val isArrangeMode: Boolean = false,
+    var isFavorite: Boolean = false
 )
