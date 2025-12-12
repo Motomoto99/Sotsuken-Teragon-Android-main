@@ -2,7 +2,6 @@
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F9F9F9">
@@ -30,22 +29,6 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:tint="#555555" />
 
-        <Button
-            android:id="@+id/buttonCompleteArrange"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:layout_marginStart="8dp"
-            android:background="@drawable/rounded_button_bg"
-            app:backgroundTint="#4CAF50"
-            android:text="完了"
-            android:textColor="@android:color/white"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            android:visibility="gone"
-            app:layout_constraintStart_toEndOf="@id/buttonChatList"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent"/>
-
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -68,22 +51,6 @@
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
             app:tint="#555555" />
-
-        <Button
-            android:id="@+id/buttonCheckRecipe"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:layout_marginEnd="8dp"
-            android:background="@drawable/rounded_button_bg"
-            app:backgroundTint="#FF9800"
-            android:text="レシピ"
-            android:textColor="@android:color/white"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            android:visibility="gone"
-            app:layout_constraintEnd_toStartOf="@id/buttonNewChat"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -135,6 +102,49 @@
             app:layout_constraintTop_toBottomOf="@id/progressBarAi" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <LinearLayout
+        android:id="@+id/actionContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp"
+        android:background="#F0F0F0"
+        app:layout_constraintTop_toBottomOf="@id/header"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+        <Button
+            android:id="@+id/buttonCompleteArrange"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/rounded_button_bg"
+            app:backgroundTint="#4CAF50"
+            android:text="完了"
+            android:textColor="@android:color/white"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:visibility="visible" />
+
+        <Button
+            android:id="@+id/buttonCheckRecipe"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/rounded_button_bg"
+            app:backgroundTint="#FF9800"
+            android:text="レシピを確認"
+            android:textColor="@android:color/white"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:visibility="visible" />
+
+
+    </LinearLayout>
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/layoutInput"

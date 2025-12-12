@@ -57,6 +57,7 @@ class AiFragment : Fragment(), RecognitionListener {
     private lateinit var chatAdapter: ChatAdapter
     private lateinit var buttonCheckRecipe: Button // ★追加
     private lateinit var buttonCompleteArrange: Button // ★追加
+    private lateinit var actionContainer: View // ボタンバー全体のコンテナ
 
     // --- 音声認識 (Vosk) ---
     private var model: Model? = null
@@ -130,6 +131,7 @@ class AiFragment : Fragment(), RecognitionListener {
         buttonCompleteArrange = view.findViewById(R.id.buttonCompleteArrange)
         // ★追加: findViewById
         textAiLoading = view.findViewById(R.id.textAiLoading)
+        actionContainer = view.findViewById(R.id.actionContainer)
 
         val layoutInput = view.findViewById<View>(R.id.layoutInput)
 
@@ -327,6 +329,7 @@ class AiFragment : Fragment(), RecognitionListener {
 
         if (isArrange) {
             // アレンジモードなら表示
+            actionContainer.visibility = View.VISIBLE
             buttonCheckRecipe.visibility = View.VISIBLE
             buttonCompleteArrange.visibility = View.VISIBLE
 
@@ -343,6 +346,7 @@ class AiFragment : Fragment(), RecognitionListener {
             }
         } else {
             // 通常モードなら非表示
+            actionContainer.visibility = View.GONE
             buttonCheckRecipe.visibility = View.GONE
             buttonCompleteArrange.visibility = View.GONE
         }

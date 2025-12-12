@@ -55,7 +55,9 @@
         android:padding="12dp"
         android:layout_marginStart="8dp"
         app:layout_constrainedWidth="true"
-        app:layout_constraintWidth_max="210dp"
+        app:layout_constraintWidth_percent="0.7"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/imageAiIcon"
         app:layout_constraintTop_toTopOf="@+id/imageAiIcon" />
 
