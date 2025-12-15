@@ -63,15 +63,16 @@ class AiFragment : Fragment(), RecognitionListener {
     private var model: Model? = null
     private var speechService: SpeechService? = null
 
-    // 話している途中のテキストを一時保存する変数
-    private var currentPartialText: String = ""
+    private var isProcessingWakeWord = false
 
-    // 音声認識の状態
-    private enum class VoiceState {
-        WAITING_WAKE_WORD,
-        LISTENING_COMMAND
-    }
-    private var voiceState = VoiceState.WAITING_WAKE_WORD
+    // ウェイクワードのリスト
+    private val wakeWordTriggers = listOf(
+        "どらごん","ドラゴン","dragon",
+        "とーく","トーク","talk",
+        "ふな","フナ",
+        "かもん","カモン","家紋"
+    )
+
 
     // 権限リクエスト用ランチャー
     private val requestPermissionLauncher =
@@ -102,6 +103,33 @@ class AiFragment : Fragment(), RecognitionListener {
             // 処理終了後は onResume が呼ばれ、そこで startWakeWordListening() が走るため
             // ここで明示的にVoskを再開する必要はありません。
         }
+
+    private fun launchGoogleSpeech() {
+        // 既に起動処理中なら、すぐに処理を終了させる
+        if (isProcessingWakeWord) {
+            return
+        }
+        // これから起動処理を始めるから、フラグを立てる
+        isProcessingWakeWord = true
+
+        // Voskが動いていたら止める（マイクの競合を防ぐため）
+        stopRecognition()
+
+        // Google音声認識のインテントを作成
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ja-JP")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "お話しください")
+        }
+
+        try {
+            googleSpeechLauncher.launch(intent)
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "音声認識機能が見つかりません", Toast.LENGTH_SHORT).show()
+            // エラーの場合はVosk待機に戻す
+            startWakeWordListening()
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -212,10 +240,7 @@ class AiFragment : Fragment(), RecognitionListener {
                 }
             }
         }
-        // ★★★ 修正ここまで ★★★
 
-
-        val currentId = AiChatSessionManager.currentChatId
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 setLoading(true, "データを読み込んでいます...")
@@ -299,25 +324,10 @@ class AiFragment : Fragment(), RecognitionListener {
 
         // ★★★ マイクボタンの処理を修正: Google音声認識(日本語)を呼び出す ★★★
         buttonMic.setOnClickListener {
-            // Voskが動いている場合は一時停止（マイクのリソース競合を防ぐ）
-            stopRecognition()
-
-            // Google音声認識のインテントを作成
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                // ★ここを "ja-JP" に指定して日本語を強制します
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ja-JP")
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "お話しください")
-            }
-
-            try {
-                googleSpeechLauncher.launch(intent)
-            } catch (e: Exception) {
-                Toast.makeText(requireContext(), "音声認識機能が見つかりません", Toast.LENGTH_SHORT).show()
-                // エラーの場合はVosk待機に戻す
-                startWakeWordListening()
-            }
+            launchGoogleSpeech()
         }
+
+        buttonMic.imageTintList = ColorStateList.valueOf(Color.parseColor("#757575"))
 
         checkPermissionAndInitModel()
     }
@@ -484,21 +494,11 @@ class AiFragment : Fragment(), RecognitionListener {
 
     private fun startWakeWordListening() {
         if (model == null) return
-        voiceState = VoiceState.WAITING_WAKE_WORD
-        currentPartialText = "" // リセット
-        updateMicIconColor()
+        // 再度聞き取りを始めるから、フラグを下ろす
+        isProcessingWakeWord = false
         restartRecognizer()
     }
 
-    private fun startCommandListening() {
-        if (model == null) return
-        voiceState = VoiceState.LISTENING_COMMAND
-        currentPartialText = "" // リセット
-        updateMicIconColor()
-        editTextMessage.hint = "お話しください..."
-        Toast.makeText(requireContext(), "聞いています... (Vosk)", Toast.LENGTH_SHORT).show()
-        restartRecognizer()
-    }
 
     private fun restartRecognizer() {
         try {
@@ -511,16 +511,6 @@ class AiFragment : Fragment(), RecognitionListener {
         }
     }
 
-    private fun updateMicIconColor() {
-        if (!::buttonMic.isInitialized) return
-        if (voiceState == VoiceState.LISTENING_COMMAND) {
-            // Voskで聞き取り中は赤色
-            buttonMic.imageTintList = ColorStateList.valueOf(Color.RED)
-        } else {
-            // 待機中はグレー
-            buttonMic.imageTintList = ColorStateList.valueOf(Color.parseColor("#757575"))
-        }
-    }
 
     // --- Vosk Callbacks ---
 
@@ -528,50 +518,23 @@ class AiFragment : Fragment(), RecognitionListener {
         val text = parseVoskResult(hypothesis)
         if (text.isEmpty()) return
 
-        if (voiceState == VoiceState.WAITING_WAKE_WORD) {
-            if (isWakeWordDetected(text)) {
-                startCommandListening()
-            }
-        } else {
-            // Voskコマンドモード中の処理
-            currentPartialText = text
+        if (isWakeWordDetected(text)) {
+            // 見つけたら即Google起動！
+            launchGoogleSpeech()
         }
     }
 
     override fun onResult(hypothesis: String) {
         val text = parseVoskResult(hypothesis)
 
-        if (voiceState == VoiceState.WAITING_WAKE_WORD) {
-            if (text.isNotEmpty() && isWakeWordDetected(text)) {
-                startCommandListening()
-            }
-        } else {
-            // Voskコマンドモードで結果が確定した場合
-            if (text.isNotEmpty()) {
-                sendMessage(manualText = text)
-
-                // 送信後は待機モードに戻る
-                voiceState = VoiceState.WAITING_WAKE_WORD
-                currentPartialText = ""
-                editTextMessage.hint = "メッセージを入力..."
-                updateMicIconColor()
-            }
+        if (text.isNotEmpty() && isWakeWordDetected(text)) {
+            // 念のため onResult でも検知したら起動
+            launchGoogleSpeech()
         }
     }
 
     override fun onFinalResult(hypothesis: String) {
-        // Voskがタイムアウトなどで停止した場合の処理
-        val text = parseVoskResult(hypothesis)
 
-        if (voiceState == VoiceState.LISTENING_COMMAND && text.isNotEmpty()) {
-            sendMessage(manualText = text)
-
-            voiceState = VoiceState.WAITING_WAKE_WORD
-            currentPartialText = ""
-            editTextMessage.hint = "メッセージを入力..."
-            updateMicIconColor()
-            startWakeWordListening()
-        }
     }
 
     override fun onError(exception: Exception) {}
@@ -593,8 +556,11 @@ class AiFragment : Fragment(), RecognitionListener {
 
     private fun isWakeWordDetected(text: String): Boolean {
         // ウェイクワードの判定ロジック
-        return text.contains("カモン") && (text.contains("マーシー") || text.contains("マシー")) ||
-                text.contains("マーシー")
+        // 空白を除去して判定しやすくする
+        val cleanText = text.replace(" ", "")
+
+        // どれか一つでも含まれていればOK
+        return wakeWordTriggers.any { cleanText.contains(it) }
     }
 
     private fun updateNewChatButtonState() {
