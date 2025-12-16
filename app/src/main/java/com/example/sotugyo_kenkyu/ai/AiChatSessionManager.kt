@@ -6,7 +6,6 @@ import com.google.firebase.ai.Chat
 import com.google.firebase.ai.FirebaseAI
 import com.google.firebase.ai.type.Content
 import com.google.firebase.ai.type.content
-import kotlinx.coroutines.tasks.await
 
 // アレンジ結果をまとめるデータクラス
 data class ArrangeResult(
@@ -114,10 +113,7 @@ object AiChatSessionManager {
         isCompleted = false
 
         // リセット
-        arrangedMenuName = null
-        arrangedMemo = null
-        arrangedMaterials = null
-        arrangedSteps = null
+        clearArrangeData()
         return chat!!
     }
 
@@ -141,6 +137,9 @@ object AiChatSessionManager {
 
         ChatRepository.addMessage(newChatId, "assistant", firstAiMessage)
 
+        // 開始時にも一応クリア
+        clearArrangeData()
+
         return firstAiMessage
     }
 
@@ -157,9 +156,9 @@ object AiChatSessionManager {
         chat = generativeModel.startChat(history = history)
         firstUserMessageSent = true
         isArrangeMode = false
+        // ここではまだ isCompleted はセットしない（ロード側で制御）
     }
 
-    // ★修正: アレンジ詳細生成メソッド（プロンプト調整）
     suspend fun generateArrangeSummary(): ArrangeResult {
         val currentChat = chat ?: return ArrangeResult("", "", "", "")
 
@@ -257,6 +256,14 @@ object AiChatSessionManager {
         isCompleted = true
     }
 
+    // ★追加: アレンジ情報のみをクリアするメソッド
+    fun clearArrangeData() {
+        arrangedMenuName = null
+        arrangedMemo = null
+        arrangedMaterials = null
+        arrangedSteps = null
+    }
+
     fun resetSession() {
         chat = null
         currentChatId = null
@@ -264,10 +271,7 @@ object AiChatSessionManager {
         isArrangeMode = false
         isCompleted = false
 
-        arrangedMenuName = null
-        arrangedMemo = null
-        arrangedMaterials = null
-        arrangedSteps = null
+        clearArrangeData()
     }
 
     fun attachExistingChat(chatId: String) {

@@ -2,6 +2,7 @@ package com.example.sotugyo_kenkyu.ai
 
 import android.Manifest
 import android.app.Activity
+import android.app.Dialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -13,8 +14,13 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -26,6 +32,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.example.sotugyo_kenkyu.R
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -35,13 +42,6 @@ import org.vosk.android.RecognitionListener
 import org.vosk.android.SpeechService
 import org.vosk.android.StorageService
 import java.io.IOException
-import android.app.Dialog
-import android.widget.Button
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
-import com.bumptech.glide.Glide
 
 class AiFragment : Fragment(), RecognitionListener {
 
@@ -126,6 +126,9 @@ class AiFragment : Fragment(), RecognitionListener {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // ★追加: 画面生成時に、まずメモリ上の古いアレンジデータをリセットする
+        AiChatSessionManager.clearArrangeData()
+
         val header = view.findViewById<View>(R.id.header)
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -171,6 +174,7 @@ class AiFragment : Fragment(), RecognitionListener {
 
         // 「レシピを確認」ボタン
         buttonCheckRecipe.setOnClickListener {
+            // 現在のマネージャーが保持している情報を確認して表示
             if (AiChatSessionManager.isCompleted && AiChatSessionManager.arrangedMenuName != null) {
                 // 完了済みならアレンジ結果を表示
                 showArrangeResultDialog(
@@ -200,7 +204,8 @@ class AiFragment : Fragment(), RecognitionListener {
 
                     val chatId = AiChatSessionManager.currentChatId
                     if (chatId != null) {
-                        ChatRepository.completeArrangeChat(chatId)
+                        // ★修正: アレンジ結果(result)を渡してDBに保存
+                        ChatRepository.completeArrangeChat(chatId, result)
                     }
 
                     // 結果を保存
@@ -396,7 +401,6 @@ class AiFragment : Fragment(), RecognitionListener {
         }
     }
 
-    // ★修正: アレンジ結果表示ダイアログ
     private fun showArrangeResultDialog(menuName: String, memo: String, materials: String, steps: String) {
         val chatId = AiChatSessionManager.currentChatId ?: return
 
@@ -414,8 +418,7 @@ class AiFragment : Fragment(), RecognitionListener {
         val txtSteps = dialog.findViewById<TextView>(R.id.textStepsDialog)
         val btnClose = dialog.findViewById<View>(R.id.buttonCloseDialog)
 
-        // ★修正: XMLに元からある静的な「【材料】」や「【作り方】」のテキストを確実に探して消す
-        // ダイアログのルートから探索
+        // XMLに元からある静的な「【材料】」や「【作り方】」のテキストを確実に探して消す
         val root = textDialogTitle.parent as? ViewGroup
 
         var scrollView: ScrollView? = null
@@ -435,7 +438,6 @@ class AiFragment : Fragment(), RecognitionListener {
             for (i in 0 until linearLayout.childCount) {
                 val v = linearLayout.getChildAt(i)
                 if (v is TextView) {
-                    // 部分一致で判定（空白などが含まれていてもヒットするように）
                     val text = v.text.toString()
                     if (text.contains("【材料】") || text.contains("【作り方】")) {
                         v.visibility = View.GONE
@@ -632,6 +634,21 @@ class AiFragment : Fragment(), RecognitionListener {
 
         AiChatSessionManager.startSessionWithHistory(list)
         AiChatSessionManager.setChatConfig(isArrange, isCompleted)
+
+        // ★追加: 完了済みの場合、DBからアレンジ結果を取得してManagerにセットする
+        if (isCompleted) {
+            try {
+                val arrangedData = ChatRepository.getArrangedRecipe(chatId)
+                if (arrangedData != null) {
+                    AiChatSessionManager.arrangedMenuName = arrangedData.title
+                    AiChatSessionManager.arrangedMemo = arrangedData.memo
+                    AiChatSessionManager.arrangedMaterials = arrangedData.materials
+                    AiChatSessionManager.arrangedSteps = arrangedData.steps
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
 
         messages.clear()
         messages.addAll(list)

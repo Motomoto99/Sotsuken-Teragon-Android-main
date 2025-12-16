@@ -6,7 +6,7 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.firestore
 import com.google.firebase.Firebase
 import kotlinx.coroutines.tasks.await
-import com.example.sotugyo_kenkyu.recipe.Recipe // ★追加
+import com.example.sotugyo_kenkyu.recipe.Recipe
 
 object ChatRepository {
 
@@ -34,17 +34,18 @@ object ChatRepository {
                 "title" to "",
                 "createdAt" to now,
                 "updatedAt" to now,
-                "isArrangeMode" to false // ★明示的にfalse
+                "isArrangeMode" to false
             )
         ).await()
 
         return docRef.id
     }
+
     /**
-     * ★追加: アレンジモード用のチャットセッションを作成
+     * アレンジモード用のチャットセッションを作成
      * レシピ情報も一緒に保存します。
      */
-    suspend fun createArrangeChatSession(recipe: Recipe,title: String): String {
+    suspend fun createArrangeChatSession(recipe: Recipe, title: String): String {
         val uid = uidOrThrow()
         val docRef = db.collection("users")
             .document(uid)
@@ -53,11 +54,7 @@ object ChatRepository {
 
         val now = FieldValue.serverTimestamp()
 
-        // タイトルを「料理名 アレンジ」で初期化
-        val initialTitle = "${recipe.recipeTitle} アレンジ"
-
         // 保存するレシピデータをMapに変換
-        // (Recipeクラスの全フィールドではなく、必要なものだけ保存するのが安全です)
         val recipeMap = mapOf(
             "id" to recipe.id,
             "recipeTitle" to recipe.recipeTitle,
@@ -73,27 +70,64 @@ object ChatRepository {
                 "createdAt" to now,
                 "updatedAt" to now,
                 "isArrangeMode" to true,
-                "isCompleted" to false, // ★完了フラグ初期値
-                "sourceRecipe" to recipeMap // ★レシピ情報を埋め込む
+                "isCompleted" to false,
+                "sourceRecipe" to recipeMap
             )
         ).await()
 
         return docRef.id
     }
+
     /**
-     * ★追加: チャットを「完了済み」にする
+     * ★変更: チャットを「完了済み」にし、アレンジ結果を保存する
      */
-    suspend fun completeArrangeChat(chatId: String) {
+    suspend fun completeArrangeChat(chatId: String, result: ArrangeResult) {
         val uid = uidOrThrow()
+
+        // 保存するデータをまとめる
+        val updates = mapOf(
+            "isCompleted" to true,
+            "arrangedRecipe" to mapOf(
+                "title" to result.title,
+                "memo" to result.memo,
+                "materials" to result.materials,
+                "steps" to result.steps
+            )
+        )
+
         db.collection("users")
             .document(uid)
             .collection("chats")
             .document(chatId)
-            .update("isCompleted", true)
+            .update(updates)
             .await()
     }
+
     /**
-     * ★追加: チャットの設定情報（メタデータ）を取得する
+     * ★追加: 保存されたアレンジレシピ情報を取得する
+     */
+    suspend fun getArrangedRecipe(chatId: String): ArrangeResult? {
+        val uid = uidOrThrow()
+        val snapshot = db.collection("users")
+            .document(uid)
+            .collection("chats")
+            .document(chatId)
+            .get()
+            .await()
+
+        @Suppress("UNCHECKED_CAST")
+        val map = snapshot.get("arrangedRecipe") as? Map<String, String> ?: return null
+
+        return ArrangeResult(
+            title = map["title"] ?: "",
+            memo = map["memo"] ?: "",
+            materials = map["materials"] ?: "",
+            steps = map["steps"] ?: ""
+        )
+    }
+
+    /**
+     * チャットの設定情報（メタデータ）を取得する
      * 履歴を開いたときに、ボタンの状態を復元するために使います。
      * 戻り値: Pair<isArrangeMode, isCompleted>
      */
@@ -160,7 +194,7 @@ object ChatRepository {
 
     /**
      * 過去チャット一覧を取得（タイトル＋日時）
-     * ★変更: お気に入り以外のチャットのみ、最新30件を保持し、それより古いものは削除する。
+     * お気に入り以外のチャットのみ、最新30件を保持し、それより古いものは削除する。
      * お気に入りのチャットは削除せず残す。
      */
     suspend fun loadChatSessions(): List<ChatSession> {
@@ -184,17 +218,16 @@ object ChatRepository {
                 createdAt = d.getTimestamp("createdAt")?.seconds ?: 0L,
                 updatedAt = d.getTimestamp("updatedAt")?.seconds ?: 0L,
                 isArrangeMode = d.getBoolean("isArrangeMode") ?: false,
-                // ★追加: Firestoreからお気に入り状態を取得
                 isFavorite = d.getBoolean("isFavorite") ?: false
             )
         }
 
         val keepLimit = 30
 
-        // ★変更: お気に入りとそうでないものを分ける
+        // お気に入りとそうでないものを分ける
         val (favorites, nonFavorites) = allSessions.partition { it.isFavorite }
 
-        // 2. お気に入りではないチャットが30件を超える場合は削除処理を行う
+        // お気に入りではないチャットが30件を超える場合は削除処理を行う
         if (nonFavorites.size > keepLimit) {
             val docsToDelete = nonFavorites.drop(keepLimit)
 
@@ -207,13 +240,13 @@ object ChatRepository {
             }
         }
 
-        // 3. お気に入り全件 + お気に入り以外の最新30件 を結合して返す (再度日付順にソート)
+        // お気に入り全件 + お気に入り以外の最新30件 を結合して返す (再度日付順にソート)
         val result = (favorites + nonFavorites.take(keepLimit)).sortedByDescending { it.updatedAt }
         return result
     }
 
     /**
-     * ★追加: チャットのお気に入り状態を更新する
+     * チャットのお気に入り状態を更新する
      */
     suspend fun updateChatFavorite(chatId: String, isFavorite: Boolean) {
         val uid = uidOrThrow()
@@ -226,7 +259,7 @@ object ChatRepository {
     }
 
     /**
-     * ★追加: 指定したチャットIDに紐付いているレシピ情報を取得する
+     * 指定したチャットIDに紐付いているレシピ情報を取得する
      * (ポップアップ表示用)
      */
     suspend fun getChatRecipeData(chatId: String): Recipe? {
