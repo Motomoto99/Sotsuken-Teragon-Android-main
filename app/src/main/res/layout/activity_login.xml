@@ -3,83 +3,112 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".LoginActivity"
-    android:id="@+id/main">
+    tools:context=".auth.LoginActivity">
 
-    <!-- 1. The image that combines the logo and background -->
-
-    <!--
-      2. Button Section
-      These are placed on top of the ImageView.
-      They are stacked from the bottom of the screen upwards.
-    -->
-
-    <!-- Guest Login Button (Bottom-most) -->
     <ImageView
         android:id="@+id/backgroundImageView"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:contentDescription="Background Image"
         android:scaleType="centerCrop"
-        android:src="@drawable/background_with_logo"
+        android:src="@drawable/wood_background"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <View
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@drawable/gradient_bottom_overlay"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <ImageView
+        android:id="@+id/logoImageView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginHorizontal="64dp"
+        android:contentDescription="App Logo"
+        android:scaleType="fitCenter"
+        android:src="@drawable/splash_icon"
+        app:layout_constraintBottom_toTopOf="@+id/buttonContainer"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.0" />
+        app:layout_constraintVertical_bias="0.45" />
 
-    <!-- Google Account Login Button (Above Guest) -->
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/registerButton"
+    <LinearLayout
+        android:id="@+id/buttonContainer"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="48dp"
-        android:layout_marginEnd="48dp"
-        android:layout_marginBottom="152dp"
-        android:backgroundTint="@android:color/white"
-        android:padding="16dp"
-        android:text="アカウント登録"
-        android:textColor="@android:color/black"
-        app:cornerRadius="24dp"
+        android:orientation="vertical"
+        android:paddingHorizontal="32dp"
+        android:paddingBottom="56dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.0"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent">
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/googleLoginButton"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="Googleアカウントでログイン"
-        android:textColor="@android:color/black"
-        android:backgroundTint="@android:color/white"
-        app:cornerRadius="24dp"
-        android:layout_marginStart="48dp"
-        android:layout_marginEnd="48dp"
-        android:layout_marginBottom="16dp"
-        android:padding="16dp"
-        app:layout_constraintBottom_toTopOf="@id/registerButton"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/emailLoginButton"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:layout_marginBottom="16dp"
+            android:backgroundTint="@color/primary_green"
+            android:text="メールアドレスでログイン"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.05"
+            app:cornerRadius="30dp"
+            app:elevation="0dp" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/emailLoginButton"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="メールアドレスでログイン"
-        android:textColor="@android:color/black"
-        android:backgroundTint="@android:color/white"
-        app:cornerRadius="24dp"
-        android:layout_marginStart="48dp"
-        android:layout_marginEnd="48dp"
-        android:layout_marginBottom="16dp"
-        android:padding="16dp"
-        app:layout_constraintBottom_toTopOf="@id/googleLoginButton"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/googleLoginButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:layout_marginBottom="32dp"
+            android:text="Googleアカウントでログイン"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.05"
+            app:backgroundTint="#1AFFFFFF"
+            app:cornerRadius="30dp"
+            app:strokeColor="@color/white"
+            app:strokeWidth="1dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="アカウントをお持ちでないですか？"
+                android:textColor="#F2FFFFFF"
+                android:textSize="14sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/registerButton"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="登録する"
+                android:textColor="@color/gold"
+                android:textStyle="bold"
+                android:textSize="15sp"
+                app:rippleColor="@color/white" />
+        </LinearLayout>
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

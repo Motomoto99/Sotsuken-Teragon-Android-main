@@ -1,4 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
+
     <style name="Base.Theme.Sotugyo_kenkyu" parent="Theme.Material3.DayNight.NoActionBar">
     </style>
 
@@ -16,5 +17,8 @@
     <style name="RoundedImage" parent="">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">12dp</item>
+    </style>
+    <style name="Theme.App.BottomNavigation" parent="ThemeOverlay.Material3.DynamicColors.DayNight">
+        <item name="colorSecondaryContainer">@color/primary_orange_light</item>
     </style>
 </resources>

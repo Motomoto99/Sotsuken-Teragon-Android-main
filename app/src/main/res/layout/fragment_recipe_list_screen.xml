@@ -10,37 +10,35 @@
         android:id="@+id/topBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingTop="36dp"
+        android:paddingTop="16dp"
         android:paddingBottom="16dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
         android:background="@android:color/white"
         android:elevation="4dp"
         app:layout_constraintTop_toTopOf="parent">
-
         <ImageButton
             android:id="@+id/buttonBack"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:layout_marginStart="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/outline_arrow_back_24"
             app:tint="#333333"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"/>
-
         <TextView
             android:id="@+id/textPageTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="レシピ一覧"
-            android:textSize="20sp"
+            android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="#333333"
+            android:textColor="#404040"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"/>
-
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <androidx.recyclerview.widget.RecyclerView

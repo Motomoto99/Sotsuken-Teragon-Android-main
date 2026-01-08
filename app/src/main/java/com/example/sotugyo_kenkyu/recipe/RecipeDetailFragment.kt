@@ -1,0 +1,265 @@
+package com.example.sotugyo_kenkyu.recipe
+
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.util.Log
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.TextView
+import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
+import com.example.sotugyo_kenkyu.R
+import com.example.sotugyo_kenkyu.favorite.FolderRepository
+import com.example.sotugyo_kenkyu.home.HomeActivity
+import com.google.firebase.firestore.FirebaseFirestore
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
+import kotlinx.coroutines.launch
+
+class RecipeDetailFragment : Fragment() {
+
+    private var recipe: Recipe? = null
+    private val db = FirebaseFirestore.getInstance()
+    private val generationHelper = RecipeGenerationHelper()
+
+    // お気に入りボタン管理用
+    private lateinit var buttonFavorite: ImageButton
+    private var isFavorite = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        arguments?.let {
+            recipe = it.getSerializable("RECIPE_DATA") as? Recipe
+        }
+    }
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        return inflater.inflate(R.layout.fragment_recipe_detail, container, false)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        val topBar: ConstraintLayout = view.findViewById(R.id.topBar)
+        ViewCompat.setOnApplyWindowInsetsListener(topBar) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
+            v.updatePadding(top = systemBars.top + originalPaddingTop)
+            insets
+        }
+
+        val currentRecipe = recipe
+        if (currentRecipe == null) {
+            Toast.makeText(context, "レシピデータの読み込みに失敗しました", Toast.LENGTH_SHORT).show()
+            parentFragmentManager.popBackStack()
+            return
+        }
+
+        val imageFood: ImageView = view.findViewById(R.id.imageFoodDetail)
+        val textTitle: TextView = view.findViewById(R.id.textTitleDetail)
+        val textTimeCost: TextView = view.findViewById(R.id.textTimeCostDetail)
+        val textMaterial: TextView = view.findViewById(R.id.textMaterialDetail)
+        val textSteps: TextView = view.findViewById(R.id.textStepsDetail)
+        val buttonWeb: Button = view.findViewById(R.id.buttonOpenWeb)
+        val backButton: ImageButton = view.findViewById(R.id.buttonBack)
+        val buttonAiArrange: Button = view.findViewById(R.id.buttonAiArrange)
+
+        // ★追加: お気に入りボタン
+        buttonFavorite = view.findViewById(R.id.buttonFavoriteDetail)
+
+        // --- 初期表示 ---
+        textTitle.text = currentRecipe.recipeTitle
+        textTimeCost.text = "読み込み中..."
+        textMaterial.text = "読み込み中..."
+        textSteps.text = "読み込み中..."
+
+        Glide.with(this)
+            .load(currentRecipe.foodImageUrl)
+            .placeholder(R.drawable.spinner_loader)
+            .into(imageFood)
+
+        // ★追加: お気に入り状態の初期チェック
+        isFavorite = currentRecipe.isFavorite
+        updateFavoriteIcon()
+        checkFavoriteStatus(currentRecipe.id)
+
+        // --- Firestoreから最新データを取得（リアルタイム監視） ---
+        val docId = currentRecipe.id
+        if (docId.isNotEmpty()) {
+            db.collection("recipes").document(docId)
+                .addSnapshotListener { document, e ->
+                    if (e != null) {
+                        Log.e("Firestore", "Listen failed", e)
+                        textSteps.text = "読み込みエラー: ${e.message}"
+                        return@addSnapshotListener
+                    }
+
+                    if (document != null && document.exists()) {
+                        try {
+                            val fetchedRecipe = document.toObject(Recipe::class.java)
+                            if (fetchedRecipe != null) {
+                                fetchedRecipe.id = docId
+                                recipe = fetchedRecipe // 最新データで更新
+
+                                // UI更新
+                                updateUI(fetchedRecipe, textTimeCost, textMaterial, textSteps)
+
+                                // 自動生成リクエスト (Helperを使用)
+                                generationHelper.checkAndRequestGeneration(fetchedRecipe) { statusMessage ->
+                                    textSteps.text = statusMessage
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e("Firestore", "Data conversion failed", e)
+                            textSteps.text = "データ形式エラー"
+                        }
+                    } else {
+                        textSteps.text = "データが見つかりませんでした"
+                    }
+                }
+        } else {
+            updateUI(currentRecipe, textTimeCost, textMaterial, textSteps)
+        }
+
+        buttonWeb.setOnClickListener {
+            val url = recipe?.recipeUrl ?: ""
+            if (url.isNotEmpty()) {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                startActivity(intent)
+            }
+        }
+
+        backButton.setOnClickListener {
+            requireActivity().onBackPressedDispatcher.onBackPressed()
+        }
+
+        // ★追加: お気に入りボタンのクリック処理
+        buttonFavorite.setOnClickListener {
+            val target = recipe ?: return@setOnClickListener
+
+            // UIを即座に更新
+            isFavorite = !isFavorite
+            target.isFavorite = isFavorite
+            updateFavoriteIcon()
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                try {
+                    if (isFavorite) {
+                        FolderRepository.addGlobalFavorite(target)
+                        Toast.makeText(context, "お気に入りに登録しました", Toast.LENGTH_SHORT).show()
+                    } else {
+                        FolderRepository.removeGlobalFavorite(target.id)
+                        Toast.makeText(context, "お気に入りを解除しました", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    // 失敗したら戻す
+                    isFavorite = !isFavorite
+                    updateFavoriteIcon()
+                    Toast.makeText(context, "更新に失敗しました", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        buttonAiArrange.setOnClickListener {
+            val current = recipe
+            if (current == null) return@setOnClickListener
+
+            // 作り方がまだない（生成待ち）場合のガード
+            val steps = current.recipeSteps
+            val stepsText = current.recipeStepsText
+            val hasSteps = (!steps.isNullOrEmpty()) || (!stepsText.isNullOrEmpty())
+
+            if (!hasSteps) {
+                Toast.makeText(context, "作り方を生成中です。少々お待ちください。", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val intent = Intent(requireContext(), HomeActivity::class.java)
+            // レシピデータを渡す
+            intent.putExtra("EXTRA_RECIPE_DATA", current)
+            // 遷移先を指定するフラグ
+            intent.putExtra("EXTRA_DESTINATION", "DESTINATION_AI_ARRANGE")
+            // メッセージ設定
+            intent.putExtra("EXTRA_LOADING_MESSAGE", "AIとアレンジを準備中です...")
+            // 重い読み込みをスキップする指示
+            intent.putExtra("EXTRA_SKIP_DATA_LOAD", true)
+
+            startActivity(intent)
+        }
+    }
+
+    // ★追加: お気に入り状態をDBから再確認
+    private fun checkFavoriteStatus(recipeId: String) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                isFavorite = FolderRepository.isFavorite(recipeId)
+                updateFavoriteIcon()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // ★追加: アイコンの見た目更新
+    private fun updateFavoriteIcon() {
+        val context = context ?: return
+        if (isFavorite) {
+            buttonFavorite.setImageResource(R.drawable.ic_star_filled)
+            buttonFavorite.setColorFilter(ContextCompat.getColor(context, R.color.gold))
+        } else {
+            buttonFavorite.setImageResource(R.drawable.ic_star_outline)
+            buttonFavorite.setColorFilter(ContextCompat.getColor(context, android.R.color.darker_gray))
+        }
+    }
+
+    private fun updateUI(
+        data: Recipe,
+        timeCostView: TextView,
+        materialView: TextView,
+        stepsView: TextView
+    ) {
+        val time = if (data.recipeIndication.isNotEmpty()) data.recipeIndication else "-"
+        val cost = if (data.recipeCost.isNotEmpty()) data.recipeCost else "-"
+        timeCostView.text = "⏰ $time   💰 $cost"
+
+        // 材料と分量の表示
+        val materials = data.recipeMaterial.orEmpty()
+        val amounts = data.servingAmounts
+
+        if (materials.isNotEmpty()) {
+            val builder = StringBuilder()
+            for (i in materials.indices) {
+                val materialName = materials[i]
+                val amountStr = if (i < amounts.size) " ... ${amounts[i]}" else ""
+                builder.append("・ $materialName$amountStr\n")
+            }
+            materialView.text = builder.toString().trim()
+        } else {
+            materialView.text = "材料情報なし"
+        }
+
+        // 手順
+        val steps = data.recipeSteps.orEmpty()
+        if (steps.isNotEmpty()) {
+            val stepsText = steps.mapIndexed { index, step ->
+                "${index + 1}. $step"
+            }.joinToString("\n\n")
+            stepsView.text = stepsText
+        } else if (!data.recipeStepsText.isNullOrEmpty()) {
+            stepsView.text = data.recipeStepsText
+        } else {
+            // 何もない場合はHelperからのメッセージ待ちか初期状態
+        }
+    }
+}

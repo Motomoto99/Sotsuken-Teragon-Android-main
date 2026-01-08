@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingVertical="4dp"
+    android:paddingHorizontal="12dp">
+
+    <!-- 日付ヘッダー -->
+    <TextView
+        android:id="@+id/textDateHeader"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="2023/11/20(月)"
+        android:textColor="#404040"
+        android:textSize="12sp"
+        android:background="@drawable/bg_date_header"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="4dp"
+        android:layout_marginBottom="8dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- AI（左側） -->
+    <androidx.constraintlayout.widget.Group
+        android:id="@+id/groupAi"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:constraint_referenced_ids="imageAiIcon,textAiMessage,textAiTime"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
+    <ImageView
+        android:id="@+id/imageAiIcon"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@drawable/new_splash_icon"
+        android:layout_marginTop="4dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textDateHeader" />
+
+    <!-- ★修正点1: 最大幅を240dpから210dpに減らして、時刻が入る隙間を確保 -->
+    <TextView
+        android:id="@+id/textAiMessage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="AIの内容"
+        android:textColor="#404040"
+        android:textSize="14sp"
+        android:background="@drawable/bg_chat_bubble_ai"
+        android:padding="12dp"
+        android:layout_marginStart="8dp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintWidth_percent="0.7"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/imageAiIcon"
+        app:layout_constraintTop_toTopOf="@+id/imageAiIcon" />
+
+    <!-- ★修正点2: 画面右端からはみ出さないように制約を追加 -->
+    <TextView
+        android:id="@+id/textAiTime"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="12:00"
+        android:textSize="10sp"
+        android:textColor="#888888"
+        android:layout_marginStart="4dp"
+        android:singleLine="true"
+        app:layout_constraintStart_toEndOf="@+id/textAiMessage"
+        app:layout_constraintBottom_toBottomOf="@+id/textAiMessage"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0" />
+
+    <!-- ユーザー（右側） -->
+    <androidx.constraintlayout.widget.Group
+        android:id="@+id/groupUser"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:constraint_referenced_ids="textUserMessage,textUserTime"
+        android:visibility="gone"
+        tools:visibility="gone" />
+
+    <TextView
+        android:id="@+id/textUserMessage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="ユーザーの内容"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:background="@drawable/bg_chat_bubble_user"
+        android:padding="12dp"
+        android:layout_marginTop="4dp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintWidth_max="240dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textDateHeader" />
+
+    <TextView
+        android:id="@+id/textUserTime"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="12:01"
+        android:textSize="10sp"
+        android:textColor="#888888"
+        android:layout_marginEnd="4dp"
+        app:layout_constraintEnd_toStartOf="@+id/textUserMessage"
+        app:layout_constraintBottom_toBottomOf="@+id/textUserMessage" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

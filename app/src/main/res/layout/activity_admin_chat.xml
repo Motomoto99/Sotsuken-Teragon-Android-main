@@ -7,13 +7,16 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#7296B8"
-    tools:context=".AdminChatActivity">
+    tools:context=".notification.AdminChatActivity">
+
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/header"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="#F5F5F5"
-        android:paddingVertical="12dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp"
+        android:paddingStart="8dp"
         android:elevation="4dp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"

@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "212042452857-cgderkfp88g17rpp7mq6b8gggniema74.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.sotugyo_kenkyu",
+            "certificate_hash": "d294127586282fa33313e5946c8a606c54e70e9d"
+          }
+        },
+        {
           "client_id": "212042452857-idbri162tphprl4n8fopl4tpq87kkmes.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
