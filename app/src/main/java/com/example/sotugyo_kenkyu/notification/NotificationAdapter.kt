@@ -1,5 +1,6 @@
 package com.example.sotugyo_kenkyu.notification
 
+import android.text.TextUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,11 +14,14 @@ import java.util.Date
 class NotificationAdapter(
     private val notificationList: List<Notification>,
     private val iconMap: Map<String, String>,
-    private val lastSeenDate: Date? // ★追加: 最後に見た日時
+    private val lastSeenDate: Date?
 ) : RecyclerView.Adapter<NotificationAdapter.NotificationViewHolder>() {
 
+    // ★追加: 展開されているアイテムの位置を記憶するセット
+    private val expandedPositions = mutableSetOf<Int>()
+
     class NotificationViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val unreadMark: View = itemView.findViewById(R.id.viewUnreadMark) // ★追加
+        val unreadMark: View = itemView.findViewById(R.id.viewUnreadMark)
         val icon: ImageView = itemView.findViewById(R.id.imgNotificationIcon)
         val title: TextView = itemView.findViewById(R.id.textNotificationTitle)
         val content: TextView = itemView.findViewById(R.id.textNotificationContent)
@@ -38,16 +42,40 @@ class NotificationAdapter(
         holder.title.text = notification.title
         holder.content.text = notification.content
 
-        // 2. ★未読マークの制御
+        // ★★★ 追加・変更部分: タップで文章を展開する処理 ★★★
+        val isExpanded = expandedPositions.contains(position)
+
+        if (isExpanded) {
+            // 展開されている場合：行数制限なし、省略記号なし
+            holder.content.maxLines = Int.MAX_VALUE
+            holder.content.ellipsize = null
+        } else {
+            // 閉じている場合：2行まで、末尾に「...」
+            holder.content.maxLines = 2
+            holder.content.ellipsize = TextUtils.TruncateAt.END
+        }
+
+        // アイテム全体をタップした時の動作
+        holder.itemView.setOnClickListener {
+            if (isExpanded) {
+                expandedPositions.remove(position) // 閉じる
+            } else {
+                expandedPositions.add(position)    // 開く
+            }
+            // 変更があった行だけアニメーション付きで更新
+            notifyItemChanged(position)
+        }
+        // ★★★ ここまで ★★★
+
+
+        // 2. 未読マークの制御
         val notifDate = notification.date?.toDate()
         val threshold = lastSeenDate?.time ?: 0L
 
-        // 通知の日付が「最後に見た日時」より新しければマークを表示
         if (notifDate != null && notifDate.time > threshold) {
             holder.unreadMark.visibility = View.VISIBLE
-            // 未読を目立たせるために背景色を変える等の処理もここで可能
         } else {
-            holder.unreadMark.visibility = View.INVISIBLE // GONEだとレイアウトがずれるのでINVISIBLE推奨
+            holder.unreadMark.visibility = View.INVISIBLE
         }
 
         // 3. アイコン設定 (運営 vs ユーザー)
