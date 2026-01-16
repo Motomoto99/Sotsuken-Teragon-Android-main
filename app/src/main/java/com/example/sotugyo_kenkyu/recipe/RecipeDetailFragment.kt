@@ -12,20 +12,29 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.example.sotugyo_kenkyu.R
+import com.example.sotugyo_kenkyu.favorite.FolderRepository
+import com.example.sotugyo_kenkyu.home.HomeActivity
 import com.google.firebase.firestore.FirebaseFirestore
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import kotlinx.coroutines.launch
 
 class RecipeDetailFragment : Fragment() {
 
     private var recipe: Recipe? = null
     private val db = FirebaseFirestore.getInstance()
     private val generationHelper = RecipeGenerationHelper()
+
+    // お気に入りボタン管理用
+    private lateinit var buttonFavorite: ImageButton
+    private var isFavorite = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,7 +53,6 @@ class RecipeDetailFragment : Fragment() {
         val topBar: ConstraintLayout = view.findViewById(R.id.topBar)
         ViewCompat.setOnApplyWindowInsetsListener(topBar) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            // XMLのpaddingTop="36dp"を上書きし、動的に「ステータスバー + 16dp」にします
             val originalPaddingTop = (16 * resources.displayMetrics.density).toInt()
             v.updatePadding(top = systemBars.top + originalPaddingTop)
             insets
@@ -64,6 +72,10 @@ class RecipeDetailFragment : Fragment() {
         val textSteps: TextView = view.findViewById(R.id.textStepsDetail)
         val buttonWeb: Button = view.findViewById(R.id.buttonOpenWeb)
         val backButton: ImageButton = view.findViewById(R.id.buttonBack)
+        val buttonAiArrange: Button = view.findViewById(R.id.buttonAiArrange)
+
+        // ★追加: お気に入りボタン
+        buttonFavorite = view.findViewById(R.id.buttonFavoriteDetail)
 
         // --- 初期表示 ---
         textTitle.text = currentRecipe.recipeTitle
@@ -75,6 +87,11 @@ class RecipeDetailFragment : Fragment() {
             .load(currentRecipe.foodImageUrl)
             .placeholder(R.drawable.spinner_loader)
             .into(imageFood)
+
+        // ★追加: お気に入り状態の初期チェック
+        isFavorite = currentRecipe.isFavorite
+        updateFavoriteIcon()
+        checkFavoriteStatus(currentRecipe.id)
 
         // --- Firestoreから最新データを取得（リアルタイム監視） ---
         val docId = currentRecipe.id
@@ -125,6 +142,85 @@ class RecipeDetailFragment : Fragment() {
         backButton.setOnClickListener {
             requireActivity().onBackPressedDispatcher.onBackPressed()
         }
+
+        // ★追加: お気に入りボタンのクリック処理
+        buttonFavorite.setOnClickListener {
+            val target = recipe ?: return@setOnClickListener
+
+            // UIを即座に更新
+            isFavorite = !isFavorite
+            target.isFavorite = isFavorite
+            updateFavoriteIcon()
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                try {
+                    if (isFavorite) {
+                        FolderRepository.addGlobalFavorite(target)
+                        Toast.makeText(context, "お気に入りに登録しました", Toast.LENGTH_SHORT).show()
+                    } else {
+                        FolderRepository.removeGlobalFavorite(target.id)
+                        Toast.makeText(context, "お気に入りを解除しました", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    // 失敗したら戻す
+                    isFavorite = !isFavorite
+                    updateFavoriteIcon()
+                    Toast.makeText(context, "更新に失敗しました", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        buttonAiArrange.setOnClickListener {
+            val current = recipe
+            if (current == null) return@setOnClickListener
+
+            // 作り方がまだない（生成待ち）場合のガード
+            val steps = current.recipeSteps
+            val stepsText = current.recipeStepsText
+            val hasSteps = (!steps.isNullOrEmpty()) || (!stepsText.isNullOrEmpty())
+
+            if (!hasSteps) {
+                Toast.makeText(context, "作り方を生成中です。少々お待ちください。", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val intent = Intent(requireContext(), HomeActivity::class.java)
+            // レシピデータを渡す
+            intent.putExtra("EXTRA_RECIPE_DATA", current)
+            // 遷移先を指定するフラグ
+            intent.putExtra("EXTRA_DESTINATION", "DESTINATION_AI_ARRANGE")
+            // メッセージ設定
+            intent.putExtra("EXTRA_LOADING_MESSAGE", "AIとアレンジを準備中です...")
+            // 重い読み込みをスキップする指示
+            intent.putExtra("EXTRA_SKIP_DATA_LOAD", true)
+
+            startActivity(intent)
+        }
+    }
+
+    // ★追加: お気に入り状態をDBから再確認
+    private fun checkFavoriteStatus(recipeId: String) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                isFavorite = FolderRepository.isFavorite(recipeId)
+                updateFavoriteIcon()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // ★追加: アイコンの見た目更新
+    private fun updateFavoriteIcon() {
+        val context = context ?: return
+        if (isFavorite) {
+            buttonFavorite.setImageResource(R.drawable.ic_star_filled)
+            buttonFavorite.setColorFilter(ContextCompat.getColor(context, R.color.gold))
+        } else {
+            buttonFavorite.setImageResource(R.drawable.ic_star_outline)
+            buttonFavorite.setColorFilter(ContextCompat.getColor(context, android.R.color.darker_gray))
+        }
     }
 
     private fun updateUI(
@@ -137,15 +233,14 @@ class RecipeDetailFragment : Fragment() {
         val cost = if (data.recipeCost.isNotEmpty()) data.recipeCost else "-"
         timeCostView.text = "⏰ $time   💰 $cost"
 
-        // ★修正: 材料と分量の表示
+        // 材料と分量の表示
         val materials = data.recipeMaterial.orEmpty()
-        val amounts = data.servingAmounts // Recipe.ktに追加されたフィールド
+        val amounts = data.servingAmounts
 
         if (materials.isNotEmpty()) {
             val builder = StringBuilder()
             for (i in materials.indices) {
                 val materialName = materials[i]
-                // 分量があれば結合して表示 (例: "・ 豚肉 ... 100g")
                 val amountStr = if (i < amounts.size) " ... ${amounts[i]}" else ""
                 builder.append("・ $materialName$amountStr\n")
             }

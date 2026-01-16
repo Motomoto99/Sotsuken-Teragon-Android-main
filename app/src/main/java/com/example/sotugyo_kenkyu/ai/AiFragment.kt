@@ -2,6 +2,7 @@ package com.example.sotugyo_kenkyu.ai
 
 import android.Manifest
 import android.app.Activity
+import android.app.Dialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -13,8 +14,13 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -26,8 +32,8 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.example.sotugyo_kenkyu.R
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import org.vosk.Model
@@ -36,7 +42,6 @@ import org.vosk.android.RecognitionListener
 import org.vosk.android.SpeechService
 import org.vosk.android.StorageService
 import java.io.IOException
-import java.util.Locale
 
 class AiFragment : Fragment(), RecognitionListener {
 
@@ -49,24 +54,26 @@ class AiFragment : Fragment(), RecognitionListener {
     private lateinit var buttonMic: ImageButton
     private lateinit var layoutAiLoading: View
 
+    private lateinit var textAiLoading: TextView
     private val messages = mutableListOf<ChatMessage>()
     private lateinit var chatAdapter: ChatAdapter
+    private lateinit var buttonCheckRecipe: Button
+    private lateinit var buttonCompleteArrange: Button
+    private lateinit var actionContainer: View
 
     // --- 音声認識 (Vosk) ---
     private var model: Model? = null
     private var speechService: SpeechService? = null
 
-    // 話している途中のテキストを一時保存する変数
-    private var currentPartialText: String = ""
+    private var isProcessingWakeWord = false
 
-    // 音声認識の状態
-    private enum class VoiceState {
-        WAITING_WAKE_WORD,
-        LISTENING_COMMAND
-    }
-    private var voiceState = VoiceState.WAITING_WAKE_WORD
+    private val wakeWordTriggers = listOf(
+        "どらごん","ドラゴン","dragon",
+        "とーく","トーク","talk",
+        "ふな","フナ",
+        "かもん","カモン","家紋"
+    )
 
-    // 権限リクエスト用ランチャー
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
@@ -76,25 +83,39 @@ class AiFragment : Fragment(), RecognitionListener {
             }
         }
 
-    // ★ Google音声認識の結果を受け取るランチャー
     private val googleSpeechLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
-                // 結果の取得
                 val data = result.data
                 val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
                 val spokenText = results?.get(0)
 
                 if (!spokenText.isNullOrBlank()) {
-                    // テキストを送信
                     sendMessage(manualText = spokenText)
                 } else {
                     Toast.makeText(requireContext(), "音声が認識できませんでした", Toast.LENGTH_SHORT).show()
                 }
             }
-            // 処理終了後は onResume が呼ばれ、そこで startWakeWordListening() が走るため
-            // ここで明示的にVoskを再開する必要はありません。
         }
+
+    private fun launchGoogleSpeech() {
+        if (isProcessingWakeWord) return
+        isProcessingWakeWord = true
+        stopRecognition()
+
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ja-JP")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "お話しください")
+        }
+
+        try {
+            googleSpeechLauncher.launch(intent)
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "音声認識機能が見つかりません", Toast.LENGTH_SHORT).show()
+            startWakeWordListening()
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -104,6 +125,9 @@ class AiFragment : Fragment(), RecognitionListener {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        // ★追加: 画面生成時に、まずメモリ上の古いアレンジデータをリセットする
+        AiChatSessionManager.clearArrangeData()
 
         val header = view.findViewById<View>(R.id.header)
         ViewCompat.setOnApplyWindowInsetsListener(header) { v, insets ->
@@ -120,6 +144,10 @@ class AiFragment : Fragment(), RecognitionListener {
         buttonNewChat = view.findViewById(R.id.buttonNewChat)
         buttonMic = view.findViewById(R.id.buttonMic)
         layoutAiLoading = view.findViewById(R.id.layoutAiLoading)
+        buttonCheckRecipe = view.findViewById(R.id.buttonCheckRecipe)
+        buttonCompleteArrange = view.findViewById(R.id.buttonCompleteArrange)
+        textAiLoading = view.findViewById(R.id.textAiLoading)
+        actionContainer = view.findViewById(R.id.actionContainer)
 
         val layoutInput = view.findViewById<View>(R.id.layoutInput)
 
@@ -142,25 +170,102 @@ class AiFragment : Fragment(), RecognitionListener {
 
         buttonSend.isEnabled = false
         updateNewChatButtonState()
+        updateArrangeButtons()
 
-        val currentId = AiChatSessionManager.currentChatId
+        // 「レシピを確認」ボタン
+        buttonCheckRecipe.setOnClickListener {
+            // 現在のマネージャーが保持している情報を確認して表示
+            if (AiChatSessionManager.isCompleted && AiChatSessionManager.arrangedMenuName != null) {
+                // 完了済みならアレンジ結果を表示
+                showArrangeResultDialog(
+                    AiChatSessionManager.arrangedMenuName ?: "アレンジ料理",
+                    AiChatSessionManager.arrangedMemo ?: "",
+                    AiChatSessionManager.arrangedMaterials ?: "",
+                    AiChatSessionManager.arrangedSteps ?: ""
+                )
+            } else {
+                // 未完了なら元のレシピを表示
+                showRecipeCheckDialog()
+            }
+        }
+
+        // 「完了」ボタン
+        buttonCompleteArrange.setOnClickListener {
+            if (AiChatSessionManager.isCompleted) {
+                navigateToRecordInput()
+                return@setOnClickListener
+            }
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                try {
+                    setLoading(true, "AIがアレンジレシピを作成中...")
+
+                    val result = AiChatSessionManager.generateArrangeSummary()
+
+                    val chatId = AiChatSessionManager.currentChatId
+                    if (chatId != null) {
+                        // ★修正: アレンジ結果(result)を渡してDBに保存
+                        ChatRepository.completeArrangeChat(chatId, result)
+                    }
+
+                    // 結果を保存
+                    AiChatSessionManager.arrangedMenuName = result.title
+                    AiChatSessionManager.arrangedMemo = result.memo
+                    AiChatSessionManager.arrangedMaterials = result.materials
+                    AiChatSessionManager.arrangedSteps = result.steps
+
+                    AiChatSessionManager.markAsCompleted()
+
+                    updateArrangeButtons()
+
+                    // ポップアップを表示
+                    showArrangeResultDialog(result.title, result.memo, result.materials, result.steps)
+
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    Toast.makeText(context, "エラーが発生しました", Toast.LENGTH_SHORT).show()
+                } finally {
+                    setLoading(false)
+                }
+            }
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                setLoading(true)
-                if (currentId == null) {
+                setLoading(true, "データを読み込んでいます...")
+
+                val currentId = AiChatSessionManager.currentChatId
+                val pendingRecipe = AiChatSessionManager.pendingArrangeRecipe
+
+                if (pendingRecipe != null) {
+                    setLoading(true, "AIとアレンジを準備中です...")
+                    AiChatSessionManager.pendingArrangeRecipe = null
+                    messages.clear()
+                    chatAdapter.notifyDataSetChanged()
+
+                    val firstMessage = AiChatSessionManager.startArrangeSession(pendingRecipe)
+                    addMessage(firstMessage, isUser = false)
+                    scrollToBottom()
+
+                    updateArrangeButtons()
+                    updateNewChatButtonState()
+
+                } else if (currentId == null) {
                     AiChatSessionManager.ensureSessionInitialized()
                     messages.clear()
                     chatAdapter.notifyDataSetChanged()
+                    updateArrangeButtons()
                 } else {
                     loadExistingChat(currentId)
+                    updateArrangeButtons()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                Toast.makeText(context, "エラーが発生しました: ${e.message}", Toast.LENGTH_SHORT).show()
             } finally {
-                setLoading(false)
+                setLoading(false, "データを読み込んでいます...")
                 buttonSend.isEnabled = true
                 updateNewChatButtonState()
-                checkPendingContextAndSend()
             }
         }
 
@@ -173,44 +278,212 @@ class AiFragment : Fragment(), RecognitionListener {
 
         buttonNewChat.setOnClickListener {
             viewLifecycleOwner.lifecycleScope.launch {
-                setLoading(true)
+                setLoading(true, "データを読み込んでいます...")
                 try {
                     AiChatSessionManager.startNewSession()
                     messages.clear()
                     chatAdapter.notifyDataSetChanged()
                     updateNewChatButtonState()
+                    updateArrangeButtons()
                 } finally {
-                    setLoading(false)
+                    setLoading(false, "データを読み込んでいます...")
                 }
             }
         }
 
-        // ★★★ マイクボタンの処理を修正: Google音声認識(日本語)を呼び出す ★★★
         buttonMic.setOnClickListener {
-            // Voskが動いている場合は一時停止（マイクのリソース競合を防ぐ）
-            stopRecognition()
-
-            // Google音声認識のインテントを作成
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                // ★ここを "ja-JP" に指定して日本語を強制します
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ja-JP")
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "お話しください")
-            }
-
-            try {
-                googleSpeechLauncher.launch(intent)
-            } catch (e: Exception) {
-                Toast.makeText(requireContext(), "音声認識機能が見つかりません", Toast.LENGTH_SHORT).show()
-                // エラーの場合はVosk待機に戻す
-                startWakeWordListening()
-            }
+            launchGoogleSpeech()
         }
 
+        buttonMic.imageTintList = ColorStateList.valueOf(Color.parseColor("#757575"))
         checkPermissionAndInitModel()
     }
 
-    // --- 音声認識の制御ロジック (Vosk) ---
+    private fun navigateToRecordInput() {
+        val menuName = AiChatSessionManager.arrangedMenuName ?: "アレンジ料理"
+        val memo = AiChatSessionManager.arrangedMemo ?: ""
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            val chatId = AiChatSessionManager.currentChatId
+            var recipe: com.example.sotugyo_kenkyu.recipe.Recipe? = null
+            if (chatId != null) {
+                recipe = ChatRepository.getChatRecipeData(chatId)
+            }
+
+            val intent = Intent(requireContext(), com.example.sotugyo_kenkyu.record.RecordInputActivity::class.java)
+            intent.putExtra("ARRANGE_MENU_NAME", menuName)
+            intent.putExtra("ARRANGE_MEMO", memo)
+            if (recipe != null) {
+                intent.putExtra("SELECTED_RECIPE", recipe)
+            }
+            startActivity(intent)
+        }
+    }
+
+    private fun updateArrangeButtons() {
+        val isArrange = AiChatSessionManager.isArrangeMode
+        val isCompleted = AiChatSessionManager.isCompleted
+
+        if (isArrange) {
+            actionContainer.visibility = View.VISIBLE
+            buttonCheckRecipe.visibility = View.VISIBLE
+            buttonCompleteArrange.visibility = View.VISIBLE
+
+            if (isCompleted) {
+                buttonCompleteArrange.text = "調理完了"
+                buttonCompleteArrange.isEnabled = true
+                buttonCompleteArrange.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FF5722"))
+            } else {
+                buttonCompleteArrange.text = "カスタマイズ完了"
+                buttonCompleteArrange.isEnabled = true
+                buttonCompleteArrange.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#4CAF50"))
+            }
+        } else {
+            actionContainer.visibility = View.GONE
+            buttonCheckRecipe.visibility = View.GONE
+            buttonCompleteArrange.visibility = View.GONE
+        }
+    }
+
+    private fun showRecipeCheckDialog() {
+        val chatId = AiChatSessionManager.currentChatId ?: return
+
+        val dialog = Dialog(requireContext())
+        dialog.setContentView(R.layout.dialog_recipe_check)
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.9).toInt(),
+            (resources.displayMetrics.heightPixels * 0.8).toInt()
+        )
+
+        val imgFood = dialog.findViewById<ImageView>(R.id.imageFoodDialog)
+        val txtTitle = dialog.findViewById<TextView>(R.id.textRecipeTitleDialog)
+        val txtMaterial = dialog.findViewById<TextView>(R.id.textMaterialDialog)
+        val txtSteps = dialog.findViewById<TextView>(R.id.textStepsDialog)
+        val btnClose = dialog.findViewById<View>(R.id.buttonCloseDialog)
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val recipe = ChatRepository.getChatRecipeData(chatId)
+
+                if (recipe != null) {
+                    txtTitle.text = recipe.recipeTitle
+
+                    val materials = recipe.recipeMaterial ?: emptyList()
+                    val amounts = recipe.servingAmounts
+                    val matBuilder = StringBuilder()
+                    for (i in materials.indices) {
+                        val amount = if (i < amounts.size) " ... ${amounts[i]}" else ""
+                        matBuilder.append("・ ${materials[i]}$amount\n")
+                    }
+                    txtMaterial.text =
+                        if (matBuilder.isNotEmpty()) matBuilder.toString().trim() else "情報なし"
+
+                    val steps = recipe.recipeSteps ?: emptyList()
+                    if (steps.isNotEmpty()) {
+                        txtSteps.text =
+                            steps.mapIndexed { i, s -> "${i + 1}. $s" }.joinToString("\n\n")
+                    } else {
+                        txtSteps.text = "情報なし"
+                    }
+
+                    Glide.with(this@AiFragment)
+                        .load(recipe.foodImageUrl)
+                        .placeholder(R.drawable.ic_launcher_background)
+                        .into(imgFood)
+
+                    dialog.show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private fun showArrangeResultDialog(menuName: String, memo: String, materials: String, steps: String) {
+        val chatId = AiChatSessionManager.currentChatId ?: return
+
+        val dialog = Dialog(requireContext())
+        dialog.setContentView(R.layout.dialog_recipe_check)
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.9).toInt(),
+            (resources.displayMetrics.heightPixels * 0.8).toInt()
+        )
+
+        val textDialogTitle = dialog.findViewById<TextView>(R.id.textDialogTitle)
+        val imgFood = dialog.findViewById<ImageView>(R.id.imageFoodDialog)
+        val txtTitle = dialog.findViewById<TextView>(R.id.textRecipeTitleDialog)
+        val txtMaterial = dialog.findViewById<TextView>(R.id.textMaterialDialog)
+        val txtSteps = dialog.findViewById<TextView>(R.id.textStepsDialog)
+        val btnClose = dialog.findViewById<View>(R.id.buttonCloseDialog)
+
+        // XMLに元からある静的な「【材料】」や「【作り方】」のテキストを確実に探して消す
+        val root = textDialogTitle.parent as? ViewGroup
+
+        var scrollView: ScrollView? = null
+        if (root != null) {
+            for (i in 0 until root.childCount) {
+                val v = root.getChildAt(i)
+                if (v is ScrollView) {
+                    scrollView = v
+                    break
+                }
+            }
+        }
+
+        val linearLayout = scrollView?.getChildAt(0) as? LinearLayout
+
+        if (linearLayout != null) {
+            for (i in 0 until linearLayout.childCount) {
+                val v = linearLayout.getChildAt(i)
+                if (v is TextView) {
+                    val text = v.text.toString()
+                    if (text.contains("【材料】") || text.contains("【作り方】")) {
+                        v.visibility = View.GONE
+                    }
+                }
+            }
+        }
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+
+        // 表示内容のセット
+        textDialogTitle.text = "アレンジ完成！"
+        txtTitle.text = menuName
+
+        // 【メモ】→【材料】の順で結合
+        val combinedMaterialText = buildString {
+            if (memo.isNotBlank()) {
+                append("【メモ】\n")
+                append(memo)
+                append("\n\n")
+            }
+            append("【材料】\n")
+            append(materials)
+        }
+        txtMaterial.text = combinedMaterialText
+
+        // 作り方の行間調整 (改行を増やす)
+        val formattedSteps = steps
+            .replace(Regex("\n+"), "\n") // 正規化
+            .replace("\n", "\n\n")       // 行間を空ける
+
+        txtSteps.text = "【作り方】\n$formattedSteps"
+
+        // 画像表示
+        viewLifecycleOwner.lifecycleScope.launch {
+            val recipe = ChatRepository.getChatRecipeData(chatId)
+            if (recipe != null) {
+                Glide.with(this@AiFragment)
+                    .load(recipe.foodImageUrl)
+                    .placeholder(R.drawable.ic_launcher_background)
+                    .into(imgFood)
+            }
+        }
+
+        dialog.show()
+    }
 
     override fun onHiddenChanged(hidden: Boolean) {
         super.onHiddenChanged(hidden)
@@ -239,7 +512,6 @@ class AiFragment : Fragment(), RecognitionListener {
     override fun onDestroyView() {
         super.onDestroyView()
         speechService?.stop()
-        speechService?.shutdown()
         speechService = null
     }
 
@@ -272,21 +544,10 @@ class AiFragment : Fragment(), RecognitionListener {
 
     private fun startWakeWordListening() {
         if (model == null) return
-        voiceState = VoiceState.WAITING_WAKE_WORD
-        currentPartialText = "" // リセット
-        updateMicIconColor()
+        isProcessingWakeWord = false
         restartRecognizer()
     }
 
-    private fun startCommandListening() {
-        if (model == null) return
-        voiceState = VoiceState.LISTENING_COMMAND
-        currentPartialText = "" // リセット
-        updateMicIconColor()
-        editTextMessage.hint = "お話しください..."
-        Toast.makeText(requireContext(), "聞いています... (Vosk)", Toast.LENGTH_SHORT).show()
-        restartRecognizer()
-    }
 
     private fun restartRecognizer() {
         try {
@@ -299,68 +560,24 @@ class AiFragment : Fragment(), RecognitionListener {
         }
     }
 
-    private fun updateMicIconColor() {
-        if (!::buttonMic.isInitialized) return
-        if (voiceState == VoiceState.LISTENING_COMMAND) {
-            // Voskで聞き取り中は赤色
-            buttonMic.imageTintList = ColorStateList.valueOf(Color.RED)
-        } else {
-            // 待機中はグレー
-            buttonMic.imageTintList = ColorStateList.valueOf(Color.parseColor("#757575"))
-        }
-    }
-
-    // --- Vosk Callbacks ---
-
     override fun onPartialResult(hypothesis: String) {
         val text = parseVoskResult(hypothesis)
         if (text.isEmpty()) return
 
-        if (voiceState == VoiceState.WAITING_WAKE_WORD) {
-            if (isWakeWordDetected(text)) {
-                startCommandListening()
-            }
-        } else {
-            // Voskコマンドモード中の処理
-            currentPartialText = text
+        if (isWakeWordDetected(text)) {
+            launchGoogleSpeech()
         }
     }
 
     override fun onResult(hypothesis: String) {
         val text = parseVoskResult(hypothesis)
 
-        if (voiceState == VoiceState.WAITING_WAKE_WORD) {
-            if (text.isNotEmpty() && isWakeWordDetected(text)) {
-                startCommandListening()
-            }
-        } else {
-            // Voskコマンドモードで結果が確定した場合
-            if (text.isNotEmpty()) {
-                sendMessage(manualText = text)
-
-                // 送信後は待機モードに戻る
-                voiceState = VoiceState.WAITING_WAKE_WORD
-                currentPartialText = ""
-                editTextMessage.hint = "メッセージを入力..."
-                updateMicIconColor()
-            }
+        if (text.isNotEmpty() && isWakeWordDetected(text)) {
+            launchGoogleSpeech()
         }
     }
 
-    override fun onFinalResult(hypothesis: String) {
-        // Voskがタイムアウトなどで停止した場合の処理
-        val text = parseVoskResult(hypothesis)
-
-        if (voiceState == VoiceState.LISTENING_COMMAND && text.isNotEmpty()) {
-            sendMessage(manualText = text)
-
-            voiceState = VoiceState.WAITING_WAKE_WORD
-            currentPartialText = ""
-            editTextMessage.hint = "メッセージを入力..."
-            updateMicIconColor()
-            startWakeWordListening()
-        }
-    }
+    override fun onFinalResult(hypothesis: String) {}
 
     override fun onError(exception: Exception) {}
     override fun onTimeout() {
@@ -380,9 +597,8 @@ class AiFragment : Fragment(), RecognitionListener {
     }
 
     private fun isWakeWordDetected(text: String): Boolean {
-        // ウェイクワードの判定ロジック
-        return text.contains("カモン") && (text.contains("マーシー") || text.contains("マシー")) ||
-                text.contains("マーシー")
+        val cleanText = text.replace(" ", "")
+        return wakeWordTriggers.any { cleanText.contains(it) }
     }
 
     private fun updateNewChatButtonState() {
@@ -397,10 +613,15 @@ class AiFragment : Fragment(), RecognitionListener {
         }
     }
 
-    private fun setLoading(isLoading: Boolean) {
+    private fun setLoading(isLoading: Boolean, message: String? = null) {
         if (isLoading) {
             layoutAiLoading.visibility = View.VISIBLE
             editTextMessage.isEnabled = false
+            if (message != null) {
+                textAiLoading.text = message
+            } else {
+                textAiLoading.text = "読み込み中..."
+            }
         } else {
             layoutAiLoading.visibility = View.GONE
             editTextMessage.isEnabled = true
@@ -409,11 +630,30 @@ class AiFragment : Fragment(), RecognitionListener {
 
     private suspend fun loadExistingChat(chatId: String) {
         val list = ChatRepository.loadMessages(chatId)
+        val (isArrange, isCompleted) = ChatRepository.getChatConfig(chatId)
+
+        AiChatSessionManager.startSessionWithHistory(list)
+        AiChatSessionManager.setChatConfig(isArrange, isCompleted)
+
+        // ★追加: 完了済みの場合、DBからアレンジ結果を取得してManagerにセットする
+        if (isCompleted) {
+            try {
+                val arrangedData = ChatRepository.getArrangedRecipe(chatId)
+                if (arrangedData != null) {
+                    AiChatSessionManager.arrangedMenuName = arrangedData.title
+                    AiChatSessionManager.arrangedMemo = arrangedData.memo
+                    AiChatSessionManager.arrangedMaterials = arrangedData.materials
+                    AiChatSessionManager.arrangedSteps = arrangedData.steps
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
         messages.clear()
         messages.addAll(list)
         chatAdapter.notifyDataSetChanged()
         scrollToBottom()
-        AiChatSessionManager.startSessionWithHistory(list)
     }
 
     private fun sendMessage(manualText: String? = null) {

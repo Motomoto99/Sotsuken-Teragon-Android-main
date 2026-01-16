@@ -15,7 +15,7 @@ import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.sotugyo_kenkyu.R
-import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -46,7 +46,7 @@ class RecordFragment : Fragment() {
         }
 
         recyclerView = view.findViewById(R.id.recyclerViewRecord)
-        val fabAdd = view.findViewById<FloatingActionButton>(R.id.fabAddRecord)
+        val fabAdd = view.findViewById<MaterialButton>(R.id.fabAddRecord)
         val textAiComment = view.findViewById<TextView>(R.id.textAiComment)
 
         recyclerView.layoutManager = GridLayoutManager(requireContext(), 2)

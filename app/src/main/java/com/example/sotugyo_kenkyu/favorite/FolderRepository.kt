@@ -112,6 +112,7 @@ object FolderRepository {
             }
         }
     }
+
     // ★追加: フォルダを削除（中身のレシピも一緒に削除）
     suspend fun deleteFolder(folderId: String) {
         val uid = currentUserId ?: return
@@ -132,6 +133,16 @@ object FolderRepository {
             batch.delete(folderRef)
         }.await()
     }
+
+    // ★追加: メインのお気に入り（すべてのお気に入り）へ追加
+    suspend fun addGlobalFavorite(recipe: Recipe) {
+        val uid = currentUserId ?: return
+        db.collection("users").document(uid)
+            .collection("favorites").document(recipe.id)
+            .set(recipe)
+            .await()
+    }
+
     // ★追加: メインのお気に入り（すべてのお気に入り）から削除
     suspend fun removeGlobalFavorite(recipeId: String) {
         val uid = currentUserId ?: return
@@ -140,7 +151,16 @@ object FolderRepository {
             .delete()
             .await()
     }
-    // FolderRepository.kt の既存のメソッドの下あたりに追加
+
+    // ★追加: 指定したレシピがお気に入り済みかチェックする
+    suspend fun isFavorite(recipeId: String): Boolean {
+        val uid = currentUserId ?: return false
+        val doc = db.collection("users").document(uid)
+            .collection("favorites").document(recipeId)
+            .get()
+            .await()
+        return doc.exists()
+    }
 
     // ★追加: どこにあろうと、そのレシピIDに関するお気に入りデータを全て削除する
     suspend fun deleteRecipeCompletely(recipeId: String) {

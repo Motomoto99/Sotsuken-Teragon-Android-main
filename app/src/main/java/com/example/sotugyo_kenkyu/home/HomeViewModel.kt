@@ -80,13 +80,25 @@ class HomeViewModel : ViewModel() {
 
     private suspend fun loadEveryoneRecords() {
         val db = FirebaseFirestore.getInstance()
+        // 現在のユーザーIDを取得（ログインしていない場合はnull）
+        val currentUid = FirebaseAuth.getInstance().currentUser?.uid
+
         try {
             val snapshot = db.collectionGroup("my_records")
                 .whereEqualTo("isPublic", true)
                 .orderBy("date", Query.Direction.DESCENDING)
-                .limit(2)
+                // 自分の記録が上位に含まれている可能性を考慮して、少し多めに取得する (2 -> 10)
+                .limit(10)
                 .get().await()
-            _publicRecords.postValue(snapshot.toObjects(Record::class.java))
+
+            val allRecords = snapshot.toObjects(Record::class.java)
+
+            // クライアントサイドでフィルタリング：自分のIDと一致しない記録のみを残す
+            val filteredRecords = allRecords
+                .filter { record -> record.userId != currentUid }
+                .take(2) // 上位2件のみを取得
+
+            _publicRecords.postValue(filteredRecords)
         } catch (e: Exception) {
             e.printStackTrace()
         }

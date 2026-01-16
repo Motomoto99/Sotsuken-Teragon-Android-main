@@ -8,7 +8,6 @@
     android:focusable="true"
     android:background="#FFFFFF">
 
-    <!-- トップバー -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
@@ -49,9 +48,19 @@
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"/>
 
+        <ImageButton
+            android:id="@+id/buttonFavoriteDetail"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_star_outline"
+            app:tint="#333333"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"/>
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- スクロール可能なメインコンテンツ -->
     <ScrollView
         android:layout_width="0dp"
         android:layout_height="0dp"
@@ -66,13 +75,30 @@
             android:orientation="vertical"
             android:paddingBottom="32dp">
 
-            <!-- 料理画像 -->
-            <ImageView
-                android:id="@+id/imageFoodDetail"
+            <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="250dp"
-                android:scaleType="centerCrop"
-                android:src="@drawable/ic_launcher_background" />
+                android:layout_height="250dp">
+
+                <ImageView
+                    android:id="@+id/imageFoodDetail"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_launcher_background" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|end"
+                    android:layout_margin="12dp"
+                    android:text="※完成イメージです"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:shadowColor="#80000000"
+                    android:shadowDx="1"
+                    android:shadowDy="1"
+                    android:shadowRadius="2" />
+            </FrameLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -80,7 +106,6 @@
                 android:orientation="vertical"
                 android:padding="24dp">
 
-                <!-- 料理タイトル -->
                 <TextView
                     android:id="@+id/textTitleDetail"
                     android:layout_width="match_parent"
@@ -90,12 +115,6 @@
                     android:textStyle="bold"
                     android:textColor="#333333" />
 
-                <!-- 作り方セクション -->
-
-                <!-- ★修正: IDを textRecipeSteps から textStepsDetail に変更 -->
-
-                <!-- Webボタン -->
-
                 <Button
                     android:id="@+id/buttonOpenWeb"
                     android:layout_width="wrap_content"
@@ -103,6 +122,7 @@
                     android:layout_gravity="end"
                     android:layout_marginTop="8dp"
                     android:background="@drawable/rounded_button_bg"
+                    app:backgroundTint="#FF9800"
                     android:gravity="center"
                     android:paddingStart="12dp"
                     android:paddingTop="0dp"
@@ -113,7 +133,6 @@
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
-                <!-- ★追加: 時間と費用の表示 (ID: textTimeCostDetail) -->
                 <TextView
                     android:id="@+id/textTimeCostDetail"
                     android:layout_width="match_parent"
@@ -130,7 +149,6 @@
                     android:layout_marginTop="16dp"
                     android:layout_marginBottom="16dp"/>
 
-                <!-- 材料セクション -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -155,6 +173,20 @@
                     android:layout_marginTop="24dp"
                     android:layout_marginBottom="16dp"
                     android:background="#EEEEEE" />
+
+                <Button
+                    android:id="@+id/buttonAiArrange"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:layout_marginTop="32dp"
+                    android:layout_marginBottom="16dp"
+                    android:background="@drawable/rounded_button_bg"
+                    app:backgroundTint="#FF9800"
+                    android:text="AIとアレンジする"
+                    android:textColor="@android:color/white"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:elevation="4dp"/>
 
                 <TextView
                     android:layout_width="wrap_content"
